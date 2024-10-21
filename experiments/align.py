@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import tqdm
+import utils
+from rpg_e2vid.utils.inference_utils import events_to_voxel_grid
+from rpg_e2vid.utils.loading_utils import load_model
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s"
@@ -29,25 +32,6 @@ IMAGES_DIR = pathlib.Path("experiments/images")
 META_DIR.mkdir(exist_ok=True)
 VIDEOS_DIR.mkdir(exist_ok=True)
 IMAGES_DIR.mkdir(exist_ok=True)
-
-
-def load_model(path_to_model: str) -> torch.nn.Module:
-    logging.info(f"Loading model {path_to_model}...")
-    raw_model = torch.load(path_to_model, map_location=DEVICE)
-    arch = raw_model["arch"]
-
-    try:
-        model_type = raw_model["model"]
-    except KeyError:
-        model_type = raw_model["config"]["model"]
-
-    # instantiate model
-    model = eval(arch)(model_type)
-
-    # load model weights
-    model.load_state_dict(raw_model["state_dict"])
-
-    return model
 
 
 @dataclasses.dataclass
@@ -77,168 +61,9 @@ class Args:
         assert self.input_video.exists(), f"{self.input_video} does not exist"
 
 
-@dataclasses.dataclass
-class EventsData:
-    array: np.ndarray
-    width: int
-    height: int
-
-    @classmethod
-    def from_path(cls, path: pathlib.Path | str) -> EventsData:
-        with open(path, "rb") as f:
-            events = np.fromfile(f, dtype=np.uint8).reshape(-1, 8)
-
-        meta_entry = events[-1]
-        events = events[:-1]
-
-        width = meta_entry[:2].view(dtype=np.uint16)[0]
-        height = meta_entry[2:4].view(dtype=np.uint16)[0]
-        n_events = meta_entry[4:].view(dtype=np.uint32)[0]
-        assert n_events == len(events), f"Expected {n_events} events, got {len(events)}"
-
-        ts_data = np.hstack(
-            [events[:, :3], np.zeros((n_events, 1), dtype=np.uint8)]
-        ).view(dtype=np.uint32)
-        xs_data = events[:, 3:5].flatten().view(dtype=np.uint16).reshape(-1, 1)
-        ys_data = events[:, 5:7].flatten().view(dtype=np.uint16).reshape(-1, 1)
-
-        events = np.hstack(
-            [ts_data, xs_data, ys_data, events[:, 7].reshape(-1, 1)]
-        ).astype(np.float32)
-        return cls(events, width, height)
-
-    @property
-    def num_events(self) -> int:
-        return self.array.shape[0]
-
-
-def read_video(path: pathlib.Path, verbose: bool = True) -> np.ndarray:
-    cap = cv2.VideoCapture(str(path))
-    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    iter_frames = range(num_frames)
-    if verbose:
-        iter_frames = tqdm.tqdm(iter_frames, total=num_frames, desc=f"Reading {path}")
-    frames = []
-    for _ in iter_frames:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frames.append(frame)
-    cap.release()
-    return np.array(frames)
-
-
-def crop_to_size(video: np.ndarray, width: int, height: int) -> np.ndarray:
-    v_height, v_width = video.shape[1:3]
-    assert v_width >= width, f"Video width {v_width} < {width}"
-    assert v_height >= height, f"Video height {v_height} < {height}"
-
-    target_prop = width / height
-    assert target_prop > 1, "Width should be greater than height"
-    target_width = int(target_prop * v_height)
-
-    width_margin = int(v_width - target_width) // 2
-    video = video[:, :, width_margin : width_margin + target_width]
-
-    resized = [
-        cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-        for frame in video
-    ]
-    return np.array(resized)
-
-
-def events_to_voxel_grid(events, num_bins, width, height):
-    assert events.shape[1] == 4
-    assert num_bins > 0
-    assert width > 0
-    assert height > 0
-
-    voxel_grid = np.zeros((num_bins, height, width), np.float32).ravel()
-
-    # normalize the event timestamps so that they lie between 0 and num_bins
-    last_stamp = events[-1, 0]
-    first_stamp = events[0, 0]
-    deltaT = last_stamp - first_stamp
-
-    if deltaT == 0:
-        deltaT = 1.0
-
-    events[:, 0] = (num_bins - 1) * (events[:, 0] - first_stamp) / deltaT
-    ts = events[:, 0]
-    xs = events[:, 1].astype(int)
-    ys = events[:, 2].astype(int)
-    pols = events[:, 3]
-    pols[pols == 0] = -1  # polarity should be +1 / -1
-
-    tis = ts.astype(int)
-    dts = ts - tis
-    vals_left = pols * (1.0 - dts)
-    vals_right = pols * dts
-
-    valid_indices = tis < num_bins
-    np.add.at(
-        voxel_grid,
-        xs[valid_indices]
-        + ys[valid_indices] * width
-        + tis[valid_indices] * width * height,
-        vals_left[valid_indices],
-    )
-
-    valid_indices = (tis + 1) < num_bins
-    np.add.at(
-        voxel_grid,
-        xs[valid_indices]
-        + ys[valid_indices] * width
-        + (tis[valid_indices] + 1) * width * height,
-        vals_right[valid_indices],
-    )
-
-    voxel_grid = np.reshape(voxel_grid, (num_bins, height, width))
-
-    return voxel_grid
-
-
-class EventWindowIterator:
-    def __init__(
-        self,
-        events: np.ndarray,
-        counts: np.ndarray,
-        window_length: int,
-        stride: int = 1,
-        offset: int = 0,
-    ) -> None:
-        self.events = events
-        self.counts = counts
-        self.event_index = 0
-        self.count_index = 0
-        self.window_length = window_length
-        self.stride = stride
-        self.offset = offset
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> np.ndarray:
-        window_start = self.offset + self.count_index
-        if window_start >= self.counts.shape[0]:
-            raise StopIteration
-
-        window_end = window_start + self.window_length
-        total_counts = self.counts[window_start:window_end].sum()
-        window = self.events[self.event_index : self.event_index + total_counts]
-        stride_counts = self.counts[window_start : window_start + self.stride].sum()
-        self.event_index += stride_counts
-        self.count_index += self.stride
-        return window
-
-    def __len__(self) -> int:
-        res, rem = divmod(self.counts.shape[0] - self.offset, self.stride)
-        return res + bool(rem)
-
-
 class ORBMeasurement:
     def __init__(self, reference_img: np.ndarray):
-        self.orb = cv2.ORB_create()
+        self.orb = cv2.ORB.create()
         self.kp_ref, self.des_ref = self.orb.detectAndCompute(reference_img, None)
         self.kp_checked = []
         self.des_checked = []
@@ -295,7 +120,7 @@ def match_events_with_frame(
     model: torch.nn.Module,
     verbose: bool = True,
 ) -> MatchResult:
-    event_it = EventWindowIterator(
+    event_it = utils.EventWindowIterator(
         events, ts_counts, window_length, stride=window_length
     )
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -331,16 +156,17 @@ def match_events_with_frame(
 
 if __name__ == "__main__":
     args = Args.from_cli()
+
     model = load_model(PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(DEVICE)
     logging.info(f"Loading events from {args.input_events}")
-    events = EventsData.from_path(args.input_events)
+    events = utils.EventsData.from_path(args.input_events)
     first_timestamp = events.array[0, 0]
     logging.info(f"First timestamp: {first_timestamp}")
     logging.info(f"Width: {events.width}, Height: {events.height}")
     logging.info(f"Number of events: {len(events.array)}")
-    video = read_video(args.input_video)
+    video = utils.read_video(args.input_video)
     logging.info(f"Resizing video to {events.width}x{events.height}")
-    video = crop_to_size(video, events.width, events.height)
+    video = utils.crop_to_size(video, events.width, events.height)
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
     logging.info("Matching events with frame")

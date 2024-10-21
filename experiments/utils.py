@@ -43,20 +43,25 @@ class EventsData:
         return self.array.shape[0]
 
 
-def read_video(path: pathlib.Path, verbose: bool = True) -> np.ndarray:
+def read_video(
+    path: pathlib.Path, verbose: bool = True
+) -> tuple[np.ndarray, np.ndarray]:
     cap = cv2.VideoCapture(str(path))
     num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     iter_frames = range(num_frames)
+    timestamps = []
     if verbose:
         iter_frames = tqdm.tqdm(iter_frames, total=num_frames, desc=f"Reading {path}")
     frames = []
     for _ in iter_frames:
         ret, frame = cap.read()
+        timestamps.append(cap.get(cv2.CAP_PROP_POS_MSEC))
         if not ret:
             break
         frames.append(frame)
     cap.release()
-    return np.array(frames)
+    timestamps = np.array(timestamps).astype(int)
+    return np.array(frames), timestamps
 
 
 def crop_to_size(video: np.ndarray, width: int, height: int) -> np.ndarray:

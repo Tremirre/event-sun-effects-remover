@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import sys
-
-if "." not in sys.path:
-    sys.path.append(".")
-
 import argparse
 import dataclasses
 import json
@@ -164,7 +159,7 @@ if __name__ == "__main__":
     logging.info(f"First timestamp: {first_timestamp}")
     logging.info(f"Width: {events.width}, Height: {events.height}")
     logging.info(f"Number of events: {len(events.array)}")
-    video = utils.read_video(args.input_video)
+    video, _ = utils.read_video(args.input_video)
     logging.info(f"Resizing video to {events.width}x{events.height}")
     video = utils.crop_to_size(video, events.width, events.height)
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)

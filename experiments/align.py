@@ -48,16 +48,16 @@ class Args:
         assert self.input_video.exists(), f"{self.input_video} does not exist"
 
 
-class ORBMeasurement:
+class FeatureMeasurement:
     def __init__(self, reference_img: np.ndarray):
-        self.orb = cv2.ORB.create()
-        self.kp_ref, self.des_ref = self.orb.detectAndCompute(reference_img, None)
+        self.alg = cv2.AffineFeature.create(cv2.SIFT.create())
+        self.kp_ref, self.des_ref = self.alg.detectAndCompute(reference_img, None)
         self.kp_checked = []
         self.des_checked = []
         self.matches = []
 
     def measure(self, img: np.ndarray) -> None:
-        kp2, des2 = self.orb.detectAndCompute(img, None)
+        kp2, des2 = self.alg.detectAndCompute(img, None)
         self.kp_checked.append(kp2)
         self.des_checked.append(des2)
         bf = cv2.BFMatcher()
@@ -72,7 +72,7 @@ class ORBMeasurement:
 @dataclasses.dataclass
 class MatchResult:
     rec_frames: np.ndarray
-    measurement: ORBMeasurement
+    measurement: FeatureMeasurement
 
     @property
     def best_idx(self) -> int:
@@ -118,28 +118,29 @@ def match_events_with_frame(
     ref_frame_gs = cv2.cvtColor(reference_frame, cv2.COLOR_BGR2GRAY)
     ref_frame_edged = (cv2.Canny(ref_frame_gs, 300, 400) > 0).astype(np.uint8) * 255
     ref_frame_edged = cv2.dilate(ref_frame_edged, np.ones((3, 3), np.uint8))
-    orb_measure = ORBMeasurement(ref_frame_gs)
+    fm = FeatureMeasurement(ref_frame_gs)
     rec = []
     prev = None
     if verbose:
         event_it = tqdm.tqdm(event_it, total=len(event_it), desc="Matching events")
     for window in event_it:
-        window = window.astype(int)
+        # window = window.astype(int)
         vg = events_to_voxel_grid(window, 5, width, height)
         vg = torch.from_numpy(vg).unsqueeze(0).float().to(const.DEVICE)
         with torch.no_grad():
             pred, prev = model(vg, prev)
-            pred = pred.squeeze().cpu().numpy()
-            pred *= 255
-            pred = pred.astype(np.uint8)
+            pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
             pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
+            # sharpen
+            pred_gb = cv2.GaussianBlur(pred, (0, 0), 3)
+            pred = cv2.addWeighted(pred, 1.5, pred_gb, -0.5, 0)
 
-        orb_measure.measure(pred)
+        fm.measure(pred)
         out.write(cv2.cvtColor(pred, cv2.COLOR_GRAY2BGR))
         rec.append(pred)
 
     out.release()
-    return MatchResult(np.array(rec), orb_measure)
+    return MatchResult(np.array(rec), fm)
 
 
 ABC = 1
@@ -162,7 +163,7 @@ if __name__ == "__main__":
 
     logging.info("Matching events with frame")
     checked_time_ms = 3000
-    window_length = 35
+    window_length = 30
     ref_frame_idx = 5
     checked_counts = ts_counts[:checked_time_ms]
     checked_events = events.array[: checked_counts.sum()]

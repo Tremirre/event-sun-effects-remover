@@ -5,10 +5,12 @@ import torch
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-PRETRAINED_DIR = pathlib.Path("pretrained")
-META_DIR = pathlib.Path("experiments/meta")
-VIDEOS_DIR = pathlib.Path("experiments/videos")
-IMAGES_DIR = pathlib.Path("experiments/images")
+parent_folder = pathlib.Path(__file__).parent
+
+PRETRAINED_DIR = parent_folder / ".." / "pretrained"
+META_DIR = parent_folder / "meta"
+VIDEOS_DIR = parent_folder / "videos"
+IMAGES_DIR = parent_folder / "images"
 META_DIR.mkdir(exist_ok=True)
 VIDEOS_DIR.mkdir(exist_ok=True)
 IMAGES_DIR.mkdir(exist_ok=True)

@@ -75,13 +75,17 @@ def overlay_events_on_video(
     ts_counts: np.ndarray,
     homography: np.ndarray,
     model: torch.nn.Module,
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     assert video.shape[0] == len(v_timestamps), "Video and timestamps mismatch"
     width, height = video.shape[2], video.shape[1]
     count_index = 0
     event_index = 0
     overlayed = np.zeros_like(video)
     prev = None
+    hom_mask = cv2.warpPerspective(
+        np.ones((height, width), np.uint8), homography, (width, height)
+    )
+    metrics = []
     for i in tqdm.tqdm(range(1, video.shape[0])):
         if v_timestamps[i] == 0:
             continue
@@ -100,14 +104,37 @@ def overlay_events_on_video(
             pred, prev = model(voxel_grid, prev)
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
         pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
-        pred_edges = (cv2.Canny(pred, 50, 200) > 0).astype(np.uint8) * 255
+        pred_edges = (cv2.Canny(pred, 50, 100) > 0).astype(np.uint8) * 255
         pred_edges = cv2.dilate(pred_edges, np.ones((3, 3), np.uint8), iterations=1)
         pred_edges = cv2.warpPerspective(pred_edges, homography, (width, height))
-        pred_edges = cv2.cvtColor(pred_edges, cv2.COLOR_GRAY2BGR)
-        overlayed_frame = cv2.addWeighted(video[i], 0.5, pred_edges, 0.5, 0)
-        overlayed[i] = overlayed_frame
+        # pred_edges = cv2.cvtColor(pred_edges, cv2.COLOR_GRAY2BGR)
+        overlay_gs = cv2.cvtColor(video[i], cv2.COLOR_BGR2GRAY)
+        overlay_edges = cv2.Canny(overlay_gs, 200, 400) > 0
+        overlay_edges = cv2.dilate(
+            overlay_edges.astype(np.uint8), np.ones((3, 3), np.uint8)
+        )
+        tp_mask = np.logical_and(overlay_edges, pred_edges > 0)
+        fp_mask = np.logical_and(overlay_edges == 0, pred_edges > 0)
+        fn_mask = np.logical_and(overlay_edges, pred_edges == 0)
+        true_positives = tp_mask.sum()
+        false_positives = fp_mask.sum()
+        false_negatives = fn_mask.sum()
+        overlay_edges[~hom_mask] = 0
+        accuracy = true_positives / (true_positives + false_positives + false_negatives)
+        precision = true_positives / (true_positives + false_positives)
+        recall = true_positives / (true_positives + false_negatives)
+        f1 = 2 * precision * recall / (precision + recall)
+
+        overlay_quality = np.zeros((height, width, 3), np.uint8)
+        overlay_quality[tp_mask] = [0, 255, 0]
+        overlay_quality[fp_mask] = [0, 0, 255]
+        overlay_quality[fn_mask] = [255, 0, 0]
+        overlayed[i] = overlay_quality
+        metrics.append((accuracy, precision, recall, f1))
+
+    metrics = np.array(metrics)
     overlayed = overlayed[:i]
-    return overlayed
+    return overlayed, metrics
 
 
 if __name__ == "__main__":
@@ -144,9 +171,14 @@ if __name__ == "__main__":
     ts_counts = ts_counts[alignment_meta.offset_ms :]
     assert len(events) == ts_counts.sum(), "Events and counts mismatch"
     hom_inv = np.linalg.inv(alignment_meta.homography)
-    overlayed = overlay_events_on_video(
+    overlayed, metrics = overlay_events_on_video(
         video, v_timestamps, events, ts_counts, hom_inv, model
     )
+
+    logging.info(f"Accuracy: {metrics[:, 0].mean()}")
+    logging.info(f"Precision: {metrics[:, 1].mean()}")
+    logging.info(f"Recall: {metrics[:, 2].mean()}")
+    logging.info(f"F1: {metrics[:, 3].mean()}")
 
     out_video = const.IMAGES_DIR / f"overlayed-{args.input_video.stem}.mp4"
     logging.info(f"Saving overlayed video to {out_video}")

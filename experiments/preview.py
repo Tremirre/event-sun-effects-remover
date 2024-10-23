@@ -6,6 +6,7 @@ import json
 import logging
 import pathlib
 
+import const
 import cv2
 import numpy as np
 import torch
@@ -17,15 +18,6 @@ from rpg_e2vid.utils.loading_utils import load_model
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s"
 )
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-PRETRAINED_DIR = pathlib.Path("pretrained")
-META_DIR = pathlib.Path("experiments/meta")
-VIDEOS_DIR = pathlib.Path("experiments/videos")
-IMAGES_DIR = pathlib.Path("experiments/images")
-META_DIR.mkdir(exist_ok=True)
-VIDEOS_DIR.mkdir(exist_ok=True)
-IMAGES_DIR.mkdir(exist_ok=True)
 
 
 @dataclasses.dataclass
@@ -103,15 +95,16 @@ def overlay_events_on_video(
         count_index += v_timestamps[i]
         event_index = events_end
         voxel_grid = events_to_voxel_grid(window, 5, width, height)
-        voxel_grid = torch.from_numpy(voxel_grid).to(DEVICE).unsqueeze(0).float()
+        voxel_grid = torch.from_numpy(voxel_grid).to(const.DEVICE).unsqueeze(0).float()
         with torch.no_grad():
             pred, prev = model(voxel_grid, prev)
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
+        pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
         pred_edges = (cv2.Canny(pred, 50, 200) > 0).astype(np.uint8) * 255
         pred_edges = cv2.dilate(pred_edges, np.ones((3, 3), np.uint8), iterations=1)
         pred_edges = cv2.warpPerspective(pred_edges, homography, (width, height))
         pred_edges = cv2.cvtColor(pred_edges, cv2.COLOR_GRAY2BGR)
-        overlayed_frame = cv2.addWeighted(video[i], 0.7, pred_edges, 0.3, 0)
+        overlayed_frame = cv2.addWeighted(video[i], 0.5, pred_edges, 0.5, 0)
         overlayed[i] = overlayed_frame
     overlayed = overlayed[:i]
     return overlayed
@@ -126,7 +119,9 @@ if __name__ == "__main__":
     alignment_meta = AlignMeta.from_json(args.input_meta)
 
     logging.info("Loading model")
-    model = load_model(PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(DEVICE)
+    model = load_model(const.PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(
+        const.DEVICE
+    )
     model.eval()
 
     logging.info(f"Loading events from {args.input_events}")
@@ -153,7 +148,7 @@ if __name__ == "__main__":
         video, v_timestamps, events, ts_counts, hom_inv, model
     )
 
-    out_video = IMAGES_DIR / f"overlayed-{args.input_video.stem}.mp4"
+    out_video = const.IMAGES_DIR / f"overlayed-{args.input_video.stem}.mp4"
     logging.info(f"Saving overlayed video to {out_video}")
     out = cv2.VideoWriter(
         str(out_video),

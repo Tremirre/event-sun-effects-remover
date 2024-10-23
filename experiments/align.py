@@ -6,6 +6,7 @@ import json
 import logging
 import pathlib
 
+import const
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,15 +19,6 @@ from rpg_e2vid.utils.loading_utils import load_model
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s"
 )
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-PRETRAINED_DIR = pathlib.Path("pretrained")
-META_DIR = pathlib.Path("experiments/meta")
-VIDEOS_DIR = pathlib.Path("experiments/videos")
-IMAGES_DIR = pathlib.Path("experiments/images")
-META_DIR.mkdir(exist_ok=True)
-VIDEOS_DIR.mkdir(exist_ok=True)
-IMAGES_DIR.mkdir(exist_ok=True)
 
 
 @dataclasses.dataclass
@@ -134,12 +126,13 @@ def match_events_with_frame(
     for window in event_it:
         window = window.astype(int)
         vg = events_to_voxel_grid(window, 5, width, height)
-        vg = torch.from_numpy(vg).unsqueeze(0).float().to(DEVICE)
+        vg = torch.from_numpy(vg).unsqueeze(0).float().to(const.DEVICE)
         with torch.no_grad():
             pred, prev = model(vg, prev)
             pred = pred.squeeze().cpu().numpy()
             pred *= 255
             pred = pred.astype(np.uint8)
+            pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
 
         orb_measure.measure(pred)
         out.write(cv2.cvtColor(pred, cv2.COLOR_GRAY2BGR))
@@ -149,31 +142,35 @@ def match_events_with_frame(
     return MatchResult(np.array(rec), orb_measure)
 
 
+ABC = 1
 if __name__ == "__main__":
     args = Args.from_cli()
 
-    model = load_model(PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(DEVICE)
+    model = load_model(const.PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(
+        const.DEVICE
+    )
     logging.info(f"Loading events from {args.input_events}")
     events = utils.EventsData.from_path(args.input_events)
     first_timestamp = events.array[0, 0]
     logging.info(f"First timestamp: {first_timestamp}")
     logging.info(f"Width: {events.width}, Height: {events.height}")
     logging.info(f"Number of events: {len(events.array)}")
-    video, _ = utils.read_video(args.input_video)
+    video, v_ts = utils.read_video(args.input_video)
     logging.info(f"Resizing video to {events.width}x{events.height}")
     video = utils.crop_to_size(video, events.width, events.height)
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
     logging.info("Matching events with frame")
     checked_time_ms = 3000
-    window_length = 30
+    window_length = 35
+    ref_frame_idx = 5
     checked_counts = ts_counts[:checked_time_ms]
     checked_events = events.array[: checked_counts.sum()]
 
     result = match_events_with_frame(
         checked_events,
         checked_counts,
-        video[0],
+        video[ref_frame_idx],
         events.width,
         events.height,
         window_length=window_length,
@@ -181,23 +178,24 @@ if __name__ == "__main__":
     )
     logging.info(f"Best match index: {result.best_idx}")
     logging.info(f"Best match homography: {result.resolve_homography()}")
-    logging.info(
-        f"Best match temporal offset: {result.resolve_temporal_offset(window_length)}ms"
+    temporal_offset = int(
+        result.resolve_temporal_offset(window_length) - v_ts[ref_frame_idx]
     )
+    logging.info(f"Best match temporal offset: {temporal_offset}ms")
 
-    out_img = IMAGES_DIR / f"matches-{window_length}-{args.input_video.stem}.png"
+    out_img = const.IMAGES_DIR / f"matches-{window_length}-{args.input_video.stem}.png"
     logging.info(f"Saving matches by frame to {out_img}")
     plt.plot(result.measurement.matches)
     plt.savefig(out_img)
 
-    out_meta = META_DIR / f"match-{args.input_video.stem}.json"
+    out_meta = const.META_DIR / f"match-{args.input_video.stem}.json"
     logging.info(f"Saving metadata to {out_meta}")
 
     with open(out_meta, "w") as f:
         json.dump(
             {
                 "homography": result.resolve_homography().astype(float).tolist(),
-                "temporal_offset": result.resolve_temporal_offset(window_length),
+                "temporal_offset": temporal_offset,
             },
             f,
         )

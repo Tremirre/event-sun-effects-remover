@@ -113,17 +113,19 @@ def overlay_events_on_video(
         overlay_edges = cv2.dilate(
             overlay_edges.astype(np.uint8), np.ones((3, 3), np.uint8)
         )
+        overlay_edges[~hom_mask] = 0
         tp_mask = np.logical_and(overlay_edges, pred_edges > 0)
         fp_mask = np.logical_and(overlay_edges == 0, pred_edges > 0)
         fn_mask = np.logical_and(overlay_edges, pred_edges == 0)
         true_positives = tp_mask.sum()
         false_positives = fp_mask.sum()
         false_negatives = fn_mask.sum()
-        overlay_edges[~hom_mask] = 0
         accuracy = true_positives / (true_positives + false_positives + false_negatives)
         precision = true_positives / (true_positives + false_positives)
         recall = true_positives / (true_positives + false_negatives)
         f1 = 2 * precision * recall / (precision + recall)
+        if np.isnan(f1):
+            f1 = 0
 
         overlay_quality = np.zeros((height, width, 3), np.uint8)
         overlay_quality[tp_mask] = [0, 255, 0]
@@ -180,7 +182,7 @@ if __name__ == "__main__":
     logging.info(f"Recall: {metrics[:, 2].mean()}")
     logging.info(f"F1: {metrics[:, 3].mean()}")
 
-    out_video = const.IMAGES_DIR / f"overlayed-{args.input_video.stem}.mp4"
+    out_video = const.VIDEOS_DIR / f"overlayed-{args.input_video.stem}.mp4"
     logging.info(f"Saving overlayed video to {out_video}")
     out = cv2.VideoWriter(
         str(out_video),

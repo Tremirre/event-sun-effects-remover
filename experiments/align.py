@@ -25,6 +25,10 @@ logging.basicConfig(
 class Args:
     input_events: pathlib.Path
     input_video: pathlib.Path
+    window_length: int
+    ref_frame_idx: int
+    check_first_ms: int
+    n_homography_strips: int = 4
 
     @classmethod
     def from_cli(cls) -> Args:
@@ -40,6 +44,34 @@ class Args:
             required=True,
             type=pathlib.Path,
             help="Path to the input video .mp4 file",
+        )
+        parser.add_argument(
+            "--window_length",
+            required=False,
+            type=int,
+            default=50,
+            help="Window length for event matching",
+        )
+        parser.add_argument(
+            "--ref_frame_idx",
+            required=False,
+            type=int,
+            default=5,
+            help="Reference frame index",
+        )
+        parser.add_argument(
+            "--check_first_ms",
+            required=False,
+            type=int,
+            default=3000,
+            help="Resolve spatio-temporal alignment for the first N milliseconds",
+        )
+        parser.add_argument(
+            "--n_homography_strips",
+            required=False,
+            type=int,
+            default=4,
+            help="Number of horizontal homography strips, used to refine the initial homography",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -64,7 +96,7 @@ class FeatureMeasurement:
         matches = bf.knnMatch(self.des_ref, des2, k=2)
         good = []
         for m, n in matches:
-            if m.distance < 0.75 * n.distance:
+            if m.distance < 0.7 * n.distance:
                 good.append([m])
         self.matches.append(len(good))
 
@@ -77,21 +109,6 @@ class MatchResult:
     @property
     def best_idx(self) -> int:
         return np.argmax(self.measurement.matches)
-
-    def resolve_homography(self) -> np.ndarray:
-        kp1 = self.measurement.kp_ref
-        kp2 = self.measurement.kp_checked[self.best_idx]
-        matches = cv2.BFMatcher().knnMatch(
-            self.measurement.des_ref, self.measurement.des_checked[self.best_idx], k=2
-        )
-        good = []
-        for m, n in matches:
-            if m.distance < 0.7 * n.distance:
-                good.append(m)
-        src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-        H, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-        return H
 
     def resolve_temporal_offset(self, window_length: int) -> int:
         return int(self.best_idx * window_length)
@@ -140,10 +157,75 @@ def match_events_with_frame(
         rec.append(pred)
 
     out.release()
-    return MatchResult(np.array(rec), fm)
+    return MatchResult(np.array(object=rec), fm)
 
 
-ABC = 1
+def make_horiz_masks(
+    n: int, width: int, height: int, overlap: int = 0
+) -> list[np.ndarray]:
+    masks = []
+    for i in range(n):
+        mask = np.zeros((height, width), dtype=np.uint8)
+        window_start = max(i * width // n - overlap, 0)
+        window_end = min((i + 1) * width // n + overlap, width)
+        mask[:, window_start:window_end] = 255
+        masks.append(mask)
+    return masks
+
+
+@dataclasses.dataclass
+class StripSpec:
+    mask: np.ndarray
+    homography: np.ndarray
+    matches: int
+
+    @property
+    def inv_homography(self) -> np.ndarray:
+        return np.linalg.inv(self.homography)
+
+
+def refine_homography(
+    src_frame: np.ndarray, event_frame_gs: np.ndarray, num_strips: int
+) -> tuple[StripSpec]:
+    overlap_masks = make_horiz_masks(
+        num_strips, src_frame.shape[1], src_frame.shape[0], 120
+    )
+    masks = make_horiz_masks(num_strips, src_frame.shape[1], src_frame.shape[0])
+    src_frame_gs = cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY)
+    event_frame_gs_gb = cv2.GaussianBlur(event_frame_gs, (0, 0), 3)
+    event_frame_gs = cv2.addWeighted(event_frame_gs, 1.5, event_frame_gs_gb, -0.5, 0)
+
+    alg = cv2.AffineFeature.create(cv2.SIFT.create())
+    matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+    specs = []
+    for o_mask, mask in zip(overlap_masks, masks):
+        kp1, des1 = alg.detectAndCompute(src_frame_gs, o_mask)
+        kp2, des2 = alg.detectAndCompute(event_frame_gs, o_mask)
+        matches = matcher.match(des1, des2)
+        assert len(matches) > 0, "No matches found"
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+        H, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+        specs.append(StripSpec(mask, H, len(matches)))
+    return specs
+
+
+def save_refinement_result(
+    event_frame_gs: np.ndarray, specs: list[StripSpec], path: pathlib.Path
+):
+    full = np.zeros_like(event_frame_gs)
+    fig, ax = plt.subplots(1, len(specs) + 2, figsize=((len(specs) + 2) * 5, 5))
+    ax[0].imshow(event_frame_gs, cmap="gray")
+    for i, spec in enumerate(specs):
+        warped = cv2.warpPerspective(
+            event_frame_gs, spec.inv_homography, (full.shape[1], full.shape[0])
+        )
+        full[spec.mask > 0] = warped[spec.mask > 0]
+        ax[i + 1].imshow(warped, cmap="gray")
+    ax[-1].imshow(full, cmap="gray")
+    plt.savefig(path)
+
+
 if __name__ == "__main__":
     args = Args.from_cli()
 
@@ -162,32 +244,43 @@ if __name__ == "__main__":
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
     logging.info("Matching events with frame")
-    checked_time_ms = 3000
-    window_length = 50
-    ref_frame_idx = 5
-    checked_counts = ts_counts[:checked_time_ms]
+    checked_counts = ts_counts[: args.check_first_ms]
     checked_events = events.array[: checked_counts.sum()]
 
     result = match_events_with_frame(
         checked_events,
         checked_counts,
-        video[ref_frame_idx],
+        video[args.ref_frame_idx],
         events.width,
         events.height,
-        window_length=window_length,
+        window_length=args.window_length,
         model=model,
     )
     logging.info(f"Best match index: {result.best_idx}")
-    logging.info(f"Best match homography: {result.resolve_homography()}")
     temporal_offset = int(
-        result.resolve_temporal_offset(window_length) - v_ts[ref_frame_idx]
+        result.resolve_temporal_offset(args.window_length) - v_ts[args.ref_frame_idx]
     )
     logging.info(f"Best match temporal offset: {temporal_offset}ms")
-
-    out_img = const.IMAGES_DIR / f"matches-{window_length}-{args.input_video.stem}.png"
+    out_img = (
+        const.IMAGES_DIR / f"matches-{args.window_length}-{args.input_video.stem}.png"
+    )
     logging.info(f"Saving matches by frame to {out_img}")
     plt.plot(result.measurement.matches)
     plt.savefig(out_img)
+
+    logging.info("Refining homography")
+    specs = refine_homography(
+        video[args.ref_frame_idx],
+        result.rec_frames[result.best_idx],
+        args.n_homography_strips,
+    )
+    logging.info(
+        f"Matches by strip: {', '.join([str(spec.matches) for spec in specs])}"
+    )
+    logging.info(f"Total matches: {sum([spec.matches for spec in specs])}")
+    ref_path = pathlib.Path(const.IMAGES_DIR) / "refinement.png"
+    logging.info(f"Saving refinement result to {ref_path}")
+    save_refinement_result(result.rec_frames[result.best_idx], specs, ref_path)
 
     out_meta = const.META_DIR / f"match-{args.input_video.stem}.json"
     logging.info(f"Saving metadata to {out_meta}")
@@ -195,7 +288,7 @@ if __name__ == "__main__":
     with open(out_meta, "w") as f:
         json.dump(
             {
-                "homography": result.resolve_homography().astype(float).tolist(),
+                "homographies": [spec.inv_homography.tolist() for spec in specs],
                 "temporal_offset": temporal_offset,
             },
             f,

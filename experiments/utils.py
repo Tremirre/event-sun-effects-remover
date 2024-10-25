@@ -119,3 +119,16 @@ class EventWindowIterator:
     def __len__(self) -> int:
         res, rem = divmod(self.counts.shape[0] - self.offset, self.stride)
         return res + bool(rem)
+
+
+def make_horiz_masks(
+    n: int, width: int, height: int, overlap: int = 0
+) -> list[np.ndarray]:
+    masks = []
+    for i in range(n):
+        mask = np.zeros((height, width), dtype=np.uint8)
+        window_start = max(i * width // n - overlap, 0)
+        window_end = min((i + 1) * width // n + overlap, width)
+        mask[:, window_start:window_end] = 255
+        masks.append(mask)
+    return masks

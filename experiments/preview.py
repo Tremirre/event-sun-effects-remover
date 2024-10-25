@@ -57,15 +57,28 @@ class Args:
 
 @dataclasses.dataclass
 class AlignMeta:
-    homography: np.ndarray
+    homographies: np.ndarray
     offset_ms: int
 
     @classmethod
     def from_json(cls, path: pathlib.Path) -> AlignMeta:
         data = json.loads(path.read_text())
-        homography = np.array(data["homography"])
+        homographies = np.array(data["homographies"])
+        assert len(homographies.shape) == 3, "There should be a list of homographies"
+        assert (
+            homographies.shape[1] == 3 and homographies.shape[2] == 3
+        ), "Invalid shape"
         offset_ms = data["temporal_offset"]
-        return cls(homography, offset_ms)
+        return cls(homographies, offset_ms)
+
+    def get_common_mask(self, width: int, height: int) -> np.ndarray:
+        common_mask = np.zeros((height, width), np.uint8)
+        masks = utils.make_horiz_masks(len(self.homographies), width, height)
+        for mask, hom in zip(masks, self.homographies):
+            full_img = np.ones((height, width), np.uint8) * 255
+            full_img = cv2.warpPerspective(full_img, hom, (width, height))
+            common_mask[mask > 0] = full_img[mask > 0]
+        return common_mask
 
 
 def overlay_events_on_video(
@@ -73,7 +86,7 @@ def overlay_events_on_video(
     v_timestamps: np.ndarray,
     events: np.ndarray,
     ts_counts: np.ndarray,
-    homography: np.ndarray,
+    alignment: AlignMeta,
     model: torch.nn.Module,
 ) -> tuple[np.ndarray, np.ndarray]:
     assert video.shape[0] == len(v_timestamps), "Video and timestamps mismatch"
@@ -82,9 +95,8 @@ def overlay_events_on_video(
     event_index = 0
     overlayed = np.zeros_like(video)
     prev = None
-    hom_mask = cv2.warpPerspective(
-        np.ones((height, width), np.uint8), homography, (width, height)
-    )
+    masks = utils.make_horiz_masks(len(alignment.homographies), width, height)
+    hom_mask = alignment.get_common_mask(width, height) > 0
     metrics = []
     for i in tqdm.tqdm(range(1, video.shape[0])):
         if v_timestamps[i] == 0:
@@ -106,8 +118,12 @@ def overlay_events_on_video(
         pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
         pred_edges = (cv2.Canny(pred, 50, 100) > 0).astype(np.uint8) * 255
         pred_edges = cv2.dilate(pred_edges, np.ones((3, 3), np.uint8), iterations=1)
-        pred_edges = cv2.warpPerspective(pred_edges, homography, (width, height))
-        # pred_edges = cv2.cvtColor(pred_edges, cv2.COLOR_GRAY2BGR)
+
+        full_pred_edges = np.zeros((height, width), np.uint8)
+        for mask, hom in zip(masks, alignment.homographies):
+            hom_warped = cv2.warpPerspective(pred_edges.copy(), hom, (width, height))
+            full_pred_edges[mask > 0] = hom_warped[mask > 0]
+        pred_edges = full_pred_edges
         overlay_gs = cv2.cvtColor(video[i], cv2.COLOR_BGR2GRAY)
         overlay_edges = cv2.Canny(overlay_gs, 200, 400) > 0
         overlay_edges = cv2.dilate(
@@ -146,7 +162,6 @@ if __name__ == "__main__":
     logging.info(f"Input meta: {args.input_meta}")
 
     alignment_meta = AlignMeta.from_json(args.input_meta)
-
     logging.info("Loading model")
     model = load_model(const.PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(
         const.DEVICE
@@ -156,6 +171,10 @@ if __name__ == "__main__":
     logging.info(f"Loading events from {args.input_events}")
     events = utils.EventsData.from_path(args.input_events)
 
+    cv2.imwrite(
+        const.IMAGES_DIR / "common_mask.png",
+        alignment_meta.get_common_mask(events.width, events.height),
+    )
     first_timestamp = events.array[0, 0]
     logging.info(f"First timestamp: {first_timestamp}")
     logging.info(f"Width: {events.width}, Height: {events.height}")
@@ -172,9 +191,8 @@ if __name__ == "__main__":
     events = events.array[skip_events:]
     ts_counts = ts_counts[alignment_meta.offset_ms :]
     assert len(events) == ts_counts.sum(), "Events and counts mismatch"
-    hom_inv = np.linalg.inv(alignment_meta.homography)
     overlayed, metrics = overlay_events_on_video(
-        video, v_timestamps, events, ts_counts, hom_inv, model
+        video, v_timestamps, events, ts_counts, alignment_meta, model
     )
 
     logging.info(f"Accuracy: {metrics[:, 0].mean()}")

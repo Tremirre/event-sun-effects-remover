@@ -160,19 +160,6 @@ def match_events_with_frame(
     return MatchResult(np.array(object=rec), fm)
 
 
-def make_horiz_masks(
-    n: int, width: int, height: int, overlap: int = 0
-) -> list[np.ndarray]:
-    masks = []
-    for i in range(n):
-        mask = np.zeros((height, width), dtype=np.uint8)
-        window_start = max(i * width // n - overlap, 0)
-        window_end = min((i + 1) * width // n + overlap, width)
-        mask[:, window_start:window_end] = 255
-        masks.append(mask)
-    return masks
-
-
 @dataclasses.dataclass
 class StripSpec:
     mask: np.ndarray
@@ -187,10 +174,10 @@ class StripSpec:
 def refine_homography(
     src_frame: np.ndarray, event_frame_gs: np.ndarray, num_strips: int
 ) -> tuple[StripSpec]:
-    overlap_masks = make_horiz_masks(
+    overlap_masks = utils.make_horiz_masks(
         num_strips, src_frame.shape[1], src_frame.shape[0], 120
     )
-    masks = make_horiz_masks(num_strips, src_frame.shape[1], src_frame.shape[0])
+    masks = utils.make_horiz_masks(num_strips, src_frame.shape[1], src_frame.shape[0])
     src_frame_gs = cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY)
     event_frame_gs_gb = cv2.GaussianBlur(event_frame_gs, (0, 0), 3)
     event_frame_gs = cv2.addWeighted(event_frame_gs, 1.5, event_frame_gs_gb, -0.5, 0)

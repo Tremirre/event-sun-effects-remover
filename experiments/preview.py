@@ -116,6 +116,8 @@ def overlay_events_on_video(
             pred, prev = model(voxel_grid, prev)
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
         pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
+        pred_gb = cv2.GaussianBlur(pred, (0, 0), 3)
+        pred = cv2.addWeighted(pred, 1.5, pred_gb, -0.5, 0)
         pred_edges = (cv2.Canny(pred, 50, 100) > 0).astype(np.uint8) * 255
         pred_edges = cv2.dilate(pred_edges, np.ones((3, 3), np.uint8), iterations=1)
 
@@ -125,7 +127,7 @@ def overlay_events_on_video(
             full_pred_edges[mask > 0] = hom_warped[mask > 0]
         pred_edges = full_pred_edges
         overlay_gs = cv2.cvtColor(video[i], cv2.COLOR_BGR2GRAY)
-        overlay_edges = cv2.Canny(overlay_gs, 200, 400) > 0
+        overlay_edges = cv2.Canny(overlay_gs, 100, 200) > 0
         overlay_edges = cv2.dilate(
             overlay_edges.astype(np.uint8), np.ones((3, 3), np.uint8)
         )

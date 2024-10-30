@@ -129,7 +129,7 @@ def match_events_with_frame(
     )
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(
-        "experiments/videos/debug-match.mp4", fourcc, 20.0, (width, height)
+        str(const.VIDEOS_DIR / "debug-match.mp4"), fourcc, 20.0, (width, height)
     )
 
     ref_frame_gs = cv2.cvtColor(reference_frame, cv2.COLOR_BGR2GRAY)
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     logging.info(f"Number of events: {len(events.array)}")
     video, v_ts = utils.read_video(args.input_video)
     logging.info(f"Resizing video to {events.width}x{events.height}")
-    video = utils.crop_to_size(video, events.width, events.height)
+    video = utils.crop_vid_to_size(video, events.width, events.height)
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
     logging.info("Matching events with frame")

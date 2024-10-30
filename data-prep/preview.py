@@ -184,7 +184,7 @@ if __name__ == "__main__":
     video, v_timestamps = utils.read_video(args.input_video)
 
     logging.info(f"Resizing video to {events.width}x{events.height}")
-    video = utils.crop_to_size(video, events.width, events.height)
+    video = utils.crop_vid_to_size(video, events.width, events.height)
 
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 

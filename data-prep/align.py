@@ -80,7 +80,7 @@ class Args:
             "--skip_first_frames",
             required=False,
             type=int,
-            default=75,
+            default=100,
             help="Skip first n frames of the source video",
         )
         parser.add_argument(

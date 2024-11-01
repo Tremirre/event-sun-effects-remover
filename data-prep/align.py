@@ -5,15 +5,14 @@ import dataclasses
 import json
 import logging
 import pathlib
+import typing
 
 import const
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
 import tqdm
 import utils
-from rpg_e2vid.utils.inference_utils import events_to_voxel_grid
 from rpg_e2vid.utils.loading_utils import load_model
 
 logging.basicConfig(
@@ -21,13 +20,24 @@ logging.basicConfig(
 )
 
 
+class FeatureAlg(typing.Protocol):
+    def detectAndCompute(self, img: np.ndarray, mask: np.ndarray) -> tuple: ...
+
+
+class MatchingAlg(typing.Protocol):
+    def knnMatch(self, des1: np.ndarray, des2: np.ndarray, k: int) -> list: ...
+
+    def match(self, des1: np.ndarray, des2: np.ndarray) -> list: ...
+
+
 @dataclasses.dataclass
 class Args:
     input_events: pathlib.Path
     input_video: pathlib.Path
     window_length: int
-    ref_frame_idx: int
-    check_first_ms: int
+    check_offsets: int
+    check_every: int
+    skip_first_frames: int
     n_homography_strips: int = 4
 
     @classmethod
@@ -53,18 +63,25 @@ class Args:
             help="Window length for event matching",
         )
         parser.add_argument(
-            "--ref_frame_idx",
+            "--check_offsets",
             required=False,
             type=int,
-            default=5,
-            help="Reference frame index",
+            default=100,
+            help="Number of offsets to check for temporal alignment",
         )
         parser.add_argument(
-            "--check_first_ms",
+            "--check_every",
             required=False,
             type=int,
-            default=3000,
-            help="Resolve spatio-temporal alignment for the first N milliseconds",
+            default=50,
+            help="Check every nth frame for spatio-temporal alignment",
+        )
+        parser.add_argument(
+            "--skip_first_frames",
+            required=False,
+            type=int,
+            default=75,
+            help="Skip first n frames of the source video",
         )
         parser.add_argument(
             "--n_homography_strips",
@@ -102,62 +119,72 @@ class FeatureMeasurement:
 
 
 @dataclasses.dataclass
-class MatchResult:
-    rec_frames: np.ndarray
-    measurement: FeatureMeasurement
+class TemporalMatchResult:
+    matches: list[list[int]] = dataclasses.field(default_factory=list)
+    align_indices: list[list[tuple[int, int]]] = dataclasses.field(default_factory=list)
 
     @property
-    def best_idx(self) -> int:
-        return np.argmax(self.measurement.matches)
+    def avg_matches_by_offset(self) -> np.ndarray:
+        return np.mean(self.matches, axis=1)
 
-    def resolve_temporal_offset(self, window_length: int) -> int:
-        return int(self.best_idx * window_length)
+    @property
+    def optimal_idx(self) -> int:
+        return np.argmax(self.avg_matches_by_offset)
+
+    def resolve_offset_ms(self, window_length: int, skipped_ms: int) -> int:
+        return self.optimal_idx * window_length + skipped_ms
+
+    def save_plot(self, path: pathlib.Path) -> None:
+        plt.plot(self.avg_matches_by_offset, "ro--")
+        plt.savefig(path)
+
+    def update(self, matches: list[int], align_indices: list[tuple[int, int]]) -> None:
+        self.matches.append(matches)
+        self.align_indices.append(align_indices)
 
 
-def match_events_with_frame(
-    events: np.ndarray,
-    ts_counts: np.ndarray,
-    reference_frame: np.ndarray,
-    width: int,
-    height: int,
+def resolve_temporal_offset(
+    src_frames: utils.Frames,
+    rec_frames: utils.Frames,
     window_length: int,
-    model: torch.nn.Module,
+    feature_alg: FeatureAlg,
+    matching_alg: MatchingAlg,
+    check_offsets: int = 100,
+    check_every: int = 50,
+    nn_thresh: float = 0.7,
     verbose: bool = True,
-) -> MatchResult:
-    event_it = utils.EventWindowIterator(
-        events, ts_counts, window_length, stride=window_length
-    )
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(
-        str(const.VIDEOS_DIR / "debug-match.mp4"), fourcc, 20.0, (width, height)
-    )
+) -> TemporalMatchResult:
+    res = TemporalMatchResult()
+    src_descs = []
+    check_indices = range(0, len(src_frames.array), check_every)
+    for i in check_indices:
+        src_frame = src_frames.array[i]
+        src_frame_gs = cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY)
+        _, des = feature_alg.detectAndCompute(src_frame_gs, None)
+        src_descs.append(des)
 
-    ref_frame_gs = cv2.cvtColor(reference_frame, cv2.COLOR_BGR2GRAY)
-    ref_frame_edged = (cv2.Canny(ref_frame_gs, 300, 400) > 0).astype(np.uint8) * 255
-    ref_frame_edged = cv2.dilate(ref_frame_edged, np.ones((3, 3), np.uint8))
-    fm = FeatureMeasurement(ref_frame_gs)
-    rec = []
-    prev = None
+    offsets = range(check_offsets)
     if verbose:
-        event_it = tqdm.tqdm(event_it, total=len(event_it), desc="Matching events")
-    for window in event_it:
-        # window = window.astype(int)
-        vg = events_to_voxel_grid(window, 5, width, height)
-        vg = torch.from_numpy(vg).unsqueeze(0).float().to(const.DEVICE)
-        with torch.no_grad():
-            pred, prev = model(vg, prev)
-            pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
-            pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
-            # sharpen
-            pred_gb = cv2.GaussianBlur(pred, (0, 0), 3)
-            pred = cv2.addWeighted(pred, 1.5, pred_gb, -0.5, 0)
+        offsets = tqdm.tqdm(offsets)
 
-        fm.measure(pred)
-        out.write(cv2.cvtColor(pred, cv2.COLOR_GRAY2BGR))
-        rec.append(pred)
-
-    out.release()
-    return MatchResult(np.array(object=rec), fm)
+    for offset in offsets:
+        matches = []
+        align_indices = []
+        for i, src_desc in zip(check_indices, src_descs):
+            aligned_rec_ts = offset * window_length + src_frames.timestamps[i]
+            rec_idx = np.argmin(np.abs(rec_frames.timestamps - aligned_rec_ts))
+            align_indices.append((i, rec_idx))
+            rec_frame = rec_frames.array[rec_idx]
+            _, rec_desc = feature_alg.detectAndCompute(rec_frame, None)
+            cur_matches = matching_alg.knnMatch(src_desc, rec_desc, k=2)
+            good = []
+            for m, n in cur_matches:
+                if m.distance < nn_thresh * n.distance:
+                    good.append(m)
+            num_matches = len(good)
+            matches.append(num_matches)
+        res.update(matches, align_indices)
+    return res
 
 
 @dataclasses.dataclass
@@ -171,24 +198,24 @@ class StripSpec:
         return np.linalg.inv(self.homography)
 
 
-def refine_homography(
-    src_frame: np.ndarray, event_frame_gs: np.ndarray, num_strips: int
+def resolve_homography(
+    src_frame: np.ndarray,
+    event_frame_gs: np.ndarray,
+    num_strips: int,
+    feature_alg: FeatureAlg,
+    matching_alg: MatchingAlg,
 ) -> tuple[StripSpec]:
     overlap_masks = utils.make_horiz_masks(
         num_strips, src_frame.shape[1], src_frame.shape[0], 120
     )
     masks = utils.make_horiz_masks(num_strips, src_frame.shape[1], src_frame.shape[0])
     src_frame_gs = cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY)
-    event_frame_gs_gb = cv2.GaussianBlur(event_frame_gs, (0, 0), 3)
-    event_frame_gs = cv2.addWeighted(event_frame_gs, 1.5, event_frame_gs_gb, -0.5, 0)
 
-    alg = cv2.AffineFeature.create(cv2.SIFT.create())
-    matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
     specs = []
     for o_mask, mask in zip(overlap_masks, masks):
-        kp1, des1 = alg.detectAndCompute(src_frame_gs, o_mask)
-        kp2, des2 = alg.detectAndCompute(event_frame_gs, o_mask)
-        matches = matcher.match(des1, des2)
+        kp1, des1 = feature_alg.detectAndCompute(src_frame_gs, o_mask)
+        kp2, des2 = feature_alg.detectAndCompute(event_frame_gs, o_mask)
+        matches = matching_alg.match(des1, des2)
         assert len(matches) > 0, "No matches found"
         src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
         dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
@@ -197,7 +224,7 @@ def refine_homography(
     return specs
 
 
-def save_refinement_result(
+def save_homography_result(
     event_frame_gs: np.ndarray, specs: list[StripSpec], path: pathlib.Path
 ):
     full = np.zeros_like(event_frame_gs)
@@ -225,49 +252,79 @@ if __name__ == "__main__":
     logging.info(f"First timestamp: {first_timestamp}")
     logging.info(f"Width: {events.width}, Height: {events.height}")
     logging.info(f"Number of events: {len(events.array)}")
-    video, v_ts = utils.read_video(args.input_video)
+    src_frames = utils.read_video(args.input_video)
+    logging.info(f"Skipping first {args.skip_first_frames} frames")
+    skipped_ms = src_frames.timestamps[args.skip_first_frames]
+    src_frames.array = src_frames.array[args.skip_first_frames :]
+    src_frames.timestamps = src_frames.timestamps[args.skip_first_frames :] - skipped_ms
+
     logging.info(f"Resizing video to {events.width}x{events.height}")
-    video = utils.crop_vid_to_size(video, events.width, events.height)
+    src_frames.array = utils.crop_vid_to_size(
+        src_frames.array, events.width, events.height
+    )
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
-    logging.info("Matching events with frame")
-    checked_counts = ts_counts[: args.check_first_ms]
-    checked_events = events.array[: checked_counts.sum()]
+    event_it = utils.EventWindowIterator(
+        events.array, ts_counts, args.window_length, stride=args.window_length
+    )
+    logging.info("Reconstructing video from events")
+    rec_frames_arr = utils.reconstruct_video(
+        event_it, events.width, events.height, model
+    )
+    rec_frames_ts = np.arange(
+        0,
+        len(rec_frames_arr) * args.window_length,
+        args.window_length,
+    )
+    rec_frames = utils.Frames(rec_frames_arr, rec_frames_ts)
 
-    result = match_events_with_frame(
-        checked_events,
-        checked_counts,
-        video[args.ref_frame_idx],
-        events.width,
-        events.height,
-        window_length=args.window_length,
-        model=model,
+    temporal_feature_alg = cv2.SIFT.create()
+    temporal_matching_alg = cv2.BFMatcher()
+
+    logging.info("Resolving temporal offset")
+    result = resolve_temporal_offset(
+        src_frames,
+        rec_frames,
+        args.window_length,
+        temporal_feature_alg,
+        temporal_matching_alg,
+        check_offsets=args.check_offsets,
+        check_every=args.check_every,
     )
-    logging.info(f"Best match index: {result.best_idx}")
-    temporal_offset = int(
-        result.resolve_temporal_offset(args.window_length) - v_ts[args.ref_frame_idx]
-    )
-    logging.info(f"Best match temporal offset: {temporal_offset}ms")
-    out_img = (
+    matching_img_path = (
         const.IMAGES_DIR / f"matches-{args.window_length}-{args.input_video.stem}.png"
     )
-    logging.info(f"Saving matches by frame to {out_img}")
-    plt.plot(result.measurement.matches)
-    plt.savefig(out_img)
+    optimal_idx = result.optimal_idx
+    temporal_offset = result.resolve_offset_ms(args.window_length, skipped_ms)
+    logging.info(f"Optimal index: {optimal_idx} | Temporal offset: {temporal_offset}ms")
+    logging.info(f"Saving matching plot to {matching_img_path}")
+    result.save_plot(matching_img_path)
 
     logging.info("Refining homography")
-    specs = refine_homography(
-        video[args.ref_frame_idx],
-        result.rec_frames[result.best_idx],
-        args.n_homography_strips,
-    )
+    spatial_feature_alg = cv2.AffineFeature.create(cv2.SIFT.create())
+    spatial_matching_alg = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+    all_specs = []
+    for src_idx, rec_idx in tqdm.tqdm(result.align_indices[result.optimal_idx]):
+        specs = resolve_homography(
+            src_frames.array[src_idx],
+            rec_frames.array[rec_idx],
+            args.n_homography_strips,
+            spatial_feature_alg,
+            spatial_matching_alg,
+        )
+        all_specs.append(specs)
+
+    best_specs = all_specs[
+        np.argmax([sum(s.matches for s in spec) for spec in all_specs])
+    ]
+
     logging.info(
-        f"Matches by strip: {', '.join([str(spec.matches) for spec in specs])}"
+        f"Matches by strip: {', '.join([str(spec.matches) for spec in best_specs])}"
     )
-    logging.info(f"Total matches: {sum([spec.matches for spec in specs])}")
+    logging.info(f"Total matches: {sum([spec.matches for spec in best_specs])}")
     ref_path = pathlib.Path(const.IMAGES_DIR) / "refinement.png"
     logging.info(f"Saving refinement result to {ref_path}")
-    save_refinement_result(result.rec_frames[result.best_idx], specs, ref_path)
+    save_homography_result(rec_frames.array[result.optimal_idx], best_specs, ref_path)
 
     out_meta = const.META_DIR / f"match-{args.input_video.stem}.json"
     logging.info(f"Saving metadata to {out_meta}")
@@ -275,8 +332,8 @@ if __name__ == "__main__":
     with open(out_meta, "w") as f:
         json.dump(
             {
-                "homographies": [spec.inv_homography.tolist() for spec in specs],
-                "temporal_offset": temporal_offset,
+                "homographies": [spec.inv_homography.tolist() for spec in best_specs],
+                "temporal_offset": int(temporal_offset),
             },
             f,
         )

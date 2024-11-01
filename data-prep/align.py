@@ -97,27 +97,6 @@ class Args:
         assert self.input_video.exists(), f"{self.input_video} does not exist"
 
 
-class FeatureMeasurement:
-    def __init__(self, reference_img: np.ndarray):
-        self.alg = cv2.AffineFeature.create(cv2.SIFT.create())
-        self.kp_ref, self.des_ref = self.alg.detectAndCompute(reference_img, None)
-        self.kp_checked = []
-        self.des_checked = []
-        self.matches = []
-
-    def measure(self, img: np.ndarray) -> None:
-        kp2, des2 = self.alg.detectAndCompute(img, None)
-        self.kp_checked.append(kp2)
-        self.des_checked.append(des2)
-        bf = cv2.BFMatcher()
-        matches = bf.knnMatch(self.des_ref, des2, k=2)
-        good = []
-        for m, n in matches:
-            if m.distance < 0.7 * n.distance:
-                good.append([m])
-        self.matches.append(len(good))
-
-
 @dataclasses.dataclass
 class TemporalMatchResult:
     matches: list[list[int]] = dataclasses.field(default_factory=list)

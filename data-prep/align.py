@@ -66,7 +66,7 @@ class Args:
             "--check_offsets",
             required=False,
             type=int,
-            default=100,
+            default=200,
             help="Number of offsets to check for temporal alignment",
         )
         parser.add_argument(
@@ -111,7 +111,20 @@ class TemporalMatchResult:
         return np.argmax(self.avg_matches_by_offset)
 
     def resolve_offset_ms(self, window_length: int, skipped_ms: int) -> int:
-        return self.optimal_idx * window_length + skipped_ms
+        offset = self.optimal_idx * window_length - skipped_ms
+        avg_matches = self.avg_matches_by_offset
+        rem = 0
+        if self.optimal_idx == 0 or self.optimal_idx == len(avg_matches) - 1:
+            logging.warning("Optimal index is at the edge of the range")
+        else:
+            rem = (
+                -1
+                if avg_matches[self.optimal_idx - 1] > avg_matches[self.optimal_idx + 1]
+                else 1
+            )
+
+        rem *= window_length / 2
+        return offset + rem
 
     def save_plot(self, path: pathlib.Path) -> None:
         plt.plot(self.avg_matches_by_offset, "ro--")

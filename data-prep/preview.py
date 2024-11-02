@@ -82,35 +82,36 @@ class AlignMeta:
 
 
 def overlay_events_on_video(
-    video: np.ndarray,
-    v_timestamps: np.ndarray,
+    src_frames: utils.Frames,
     events: np.ndarray,
     ts_counts: np.ndarray,
     alignment: AlignMeta,
     model: torch.nn.Module,
 ) -> tuple[np.ndarray, np.ndarray]:
-    assert video.shape[0] == len(v_timestamps), "Video and timestamps mismatch"
-    width, height = video.shape[2], video.shape[1]
     count_index = 0
     event_index = 0
-    overlayed = np.zeros_like(video)
+    overlayed = np.zeros_like(src_frames.array)
     prev = None
-    masks = utils.make_horiz_masks(len(alignment.homographies), width, height)
-    hom_mask = alignment.get_common_mask(width, height) > 0
+    masks = utils.make_horiz_masks(
+        len(alignment.homographies), src_frames.width, src_frames.height
+    )
+    hom_mask = alignment.get_common_mask(src_frames.width, src_frames.height) > 0
     metrics = []
-    for i in tqdm.tqdm(range(1, video.shape[0])):
-        if v_timestamps[i] == 0:
+    for i in tqdm.tqdm(range(1, src_frames.num_frames), desc="Overlaying frames"):
+        if src_frames.timestamps[i] == 0:
             continue
-        window_start = v_timestamps[i - 1]
-        window_end = v_timestamps[i]
+        window_start = src_frames.timestamps[i - 1]
+        window_end = src_frames.timestamps[i]
         events_in_window = ts_counts[window_start:window_end].sum()
         events_end = event_index + events_in_window
         window = events[event_index:events_end]
         if not len(window):
             break
-        count_index += v_timestamps[i]
+        count_index += src_frames.timestamps[i]
         event_index = events_end
-        voxel_grid = events_to_voxel_grid(window, 5, width, height)
+        voxel_grid = events_to_voxel_grid(
+            window, 5, src_frames.width, src_frames.height
+        )
         voxel_grid = torch.from_numpy(voxel_grid).to(const.DEVICE).unsqueeze(0).float()
         with torch.no_grad():
             pred, prev = model(voxel_grid, prev)
@@ -121,12 +122,14 @@ def overlay_events_on_video(
         pred_edges = (cv2.Canny(pred, 50, 100) > 0).astype(np.uint8) * 255
         pred_edges = cv2.dilate(pred_edges, np.ones((3, 3), np.uint8), iterations=1)
 
-        full_pred_edges = np.zeros((height, width), np.uint8)
+        full_pred_edges = np.zeros((src_frames.height, src_frames.width), np.uint8)
         for mask, hom in zip(masks, alignment.homographies):
-            hom_warped = cv2.warpPerspective(pred_edges.copy(), hom, (width, height))
+            hom_warped = cv2.warpPerspective(
+                pred_edges.copy(), hom, (src_frames.width, src_frames.height)
+            )
             full_pred_edges[mask > 0] = hom_warped[mask > 0]
         pred_edges = full_pred_edges
-        overlay_gs = cv2.cvtColor(video[i], cv2.COLOR_BGR2GRAY)
+        overlay_gs = cv2.cvtColor(src_frames.array[i], cv2.COLOR_BGR2GRAY)
         overlay_edges = cv2.Canny(overlay_gs, 100, 200) > 0
         overlay_edges = cv2.dilate(
             overlay_edges.astype(np.uint8), np.ones((3, 3), np.uint8)
@@ -145,7 +148,7 @@ def overlay_events_on_video(
         if np.isnan(f1):
             f1 = 0
 
-        overlay_quality = np.zeros((height, width, 3), np.uint8)
+        overlay_quality = np.zeros((src_frames.height, src_frames.width, 3), np.uint8)
         overlay_quality[tp_mask] = [0, 255, 0]
         overlay_quality[fp_mask] = [0, 0, 255]
         overlay_quality[fn_mask] = [255, 0, 0]
@@ -181,10 +184,12 @@ if __name__ == "__main__":
     logging.info(f"First timestamp: {first_timestamp}")
     logging.info(f"Width: {events.width}, Height: {events.height}")
     logging.info(f"Number of events: {len(events.array)}")
-    video, v_timestamps = utils.read_video(args.input_video)
+    src_frames = utils.read_video(args.input_video)
 
     logging.info(f"Resizing video to {events.width}x{events.height}")
-    video = utils.crop_vid_to_size(video, events.width, events.height)
+    src_frames.array = utils.crop_vid_to_size(
+        src_frames.array, events.width, events.height
+    )
 
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
@@ -194,7 +199,7 @@ if __name__ == "__main__":
     ts_counts = ts_counts[alignment_meta.offset_ms :]
     assert len(events) == ts_counts.sum(), "Events and counts mismatch"
     overlayed, metrics = overlay_events_on_video(
-        video, v_timestamps, events, ts_counts, alignment_meta, model
+        src_frames, events, ts_counts, alignment_meta, model
     )
 
     logging.info(f"Accuracy: {metrics[:, 0].mean()}")
@@ -208,7 +213,7 @@ if __name__ == "__main__":
         str(out_video),
         cv2.VideoWriter_fourcc(*"mp4v"),
         30,
-        (video.shape[2], video.shape[1]),
+        (src_frames.width, src_frames.height),
     )
     for frame in overlayed:
         out.write(frame)

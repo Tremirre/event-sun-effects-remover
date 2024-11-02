@@ -193,10 +193,19 @@ if __name__ == "__main__":
 
     _, ts_counts = np.unique(events.array[:, 0], return_counts=True)
 
-    logging.info(f"Applying offset {alignment_meta.offset_ms}ms")
-    skip_events = ts_counts[: alignment_meta.offset_ms].sum()
-    events = events.array[skip_events:]
-    ts_counts = ts_counts[alignment_meta.offset_ms :]
+    if alignment_meta.offset_ms > 0:
+        logging.info(f"Applying offset {alignment_meta.offset_ms}ms to events")
+        skip_events = ts_counts[: alignment_meta.offset_ms].sum()
+        events = events.array[skip_events:]
+        ts_counts = ts_counts[alignment_meta.offset_ms :]
+    else:
+        logging.info(f"Applying offset {-alignment_meta.offset_ms}ms to video")
+        skip_frames_ms = -alignment_meta.offset_ms
+        skip_frames = (src_frames.timestamps < skip_frames_ms).sum()
+        src_frames.array = src_frames.array[skip_frames:]
+        src_frames.timestamps = (
+            src_frames.timestamps[skip_frames:] - src_frames.timestamps[skip_frames]
+        )
     assert len(events) == ts_counts.sum(), "Events and counts mismatch"
     overlayed, metrics = overlay_events_on_video(
         src_frames, events, ts_counts, alignment_meta, model

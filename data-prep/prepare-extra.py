@@ -50,6 +50,9 @@ if __name__ == "__main__":
         img_gs = preprocess_image(img.copy())
         # add a channel dimension
         img_gs = np.expand_dims(img_gs, axis=-1)
-        img = np.concatenate([img, img_gs], axis=-1)
+        img_mask = (
+            np.ones((args.target_height, args.target_width, 1), dtype=np.uint8) * 255
+        )
+        img = np.concatenate([img, img_gs, img_mask], axis=-1)
         new_name = img_path.stem + ".npy"
         np.save(str(args.output_folder / new_name), img)

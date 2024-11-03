@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import json
 import logging
 import pathlib
 
@@ -55,37 +54,11 @@ class Args:
         assert self.input_meta.exists(), f"{self.input_meta} does not exist"
 
 
-@dataclasses.dataclass
-class AlignMeta:
-    homographies: np.ndarray
-    offset_ms: int
-
-    @classmethod
-    def from_json(cls, path: pathlib.Path) -> AlignMeta:
-        data = json.loads(path.read_text())
-        homographies = np.array(data["homographies"])
-        assert len(homographies.shape) == 3, "There should be a list of homographies"
-        assert (
-            homographies.shape[1] == 3 and homographies.shape[2] == 3
-        ), "Invalid shape"
-        offset_ms = data["temporal_offset"]
-        return cls(homographies, offset_ms)
-
-    def get_common_mask(self, width: int, height: int) -> np.ndarray:
-        common_mask = np.zeros((height, width), np.uint8)
-        masks = utils.make_horiz_masks(len(self.homographies), width, height)
-        for mask, hom in zip(masks, self.homographies):
-            full_img = np.ones((height, width), np.uint8) * 255
-            full_img = cv2.warpPerspective(full_img, hom, (width, height))
-            common_mask[mask > 0] = full_img[mask > 0]
-        return common_mask
-
-
 def overlay_events_on_video(
     src_frames: utils.Frames,
     events: np.ndarray,
     ts_counts: np.ndarray,
-    alignment: AlignMeta,
+    alignment: utils.AlignMeta,
     model: torch.nn.Module,
 ) -> tuple[np.ndarray, np.ndarray]:
     count_index = 0
@@ -166,7 +139,7 @@ if __name__ == "__main__":
     logging.info(f"Input video: {args.input_video}")
     logging.info(f"Input meta: {args.input_meta}")
 
-    alignment_meta = AlignMeta.from_json(args.input_meta)
+    alignment_meta = utils.AlignMeta.from_json(args.input_meta)
     logging.info("Loading model")
     model = load_model(const.PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(
         const.DEVICE

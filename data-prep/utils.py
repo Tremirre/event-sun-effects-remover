@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import pathlib
 import typing
 
@@ -106,6 +107,32 @@ class Frames:
     @property
     def width(self) -> int:
         return self.array.shape[2]
+
+
+@dataclasses.dataclass
+class AlignMeta:
+    homographies: np.ndarray
+    offset_ms: int
+
+    @classmethod
+    def from_json(cls, path: pathlib.Path) -> AlignMeta:
+        data = json.loads(path.read_text())
+        homographies = np.array(data["homographies"])
+        assert len(homographies.shape) == 3, "There should be a list of homographies"
+        assert (
+            homographies.shape[1] == 3 and homographies.shape[2] == 3
+        ), "Invalid shape"
+        offset_ms = data["temporal_offset"]
+        return cls(homographies, offset_ms)
+
+    def get_common_mask(self, width: int, height: int) -> np.ndarray:
+        common_mask = np.zeros((height, width), np.uint8)
+        masks = make_horiz_masks(len(self.homographies), width, height)
+        for mask, hom in zip(masks, self.homographies):
+            full_img = np.ones((height, width), np.uint8) * 255
+            full_img = cv2.warpPerspective(full_img, hom, (width, height))
+            common_mask[mask > 0] = full_img[mask > 0]
+        return common_mask
 
 
 def read_video(path: pathlib.Path, verbose: bool = True) -> Frames:

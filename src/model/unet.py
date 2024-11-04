@@ -61,6 +61,8 @@ class UNet(pl.LightningModule):
         # mae + ssim
         mae = F.l1_loss(y_hat, y)
         ssim = 1 - msssim.ms_ssim(y_hat, y)
+        self.log("mae", mae)
+        self.log("ssim", ssim)
         return mae + ssim
 
     def forward(self, x):
@@ -77,21 +79,21 @@ class UNet(pl.LightningModule):
     def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
-        loss = F.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
-        loss = F.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
         self.log("val_loss", loss)
         return loss
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
-        loss = F.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
         self.log("test_loss", loss)
         return loss
 

@@ -7,9 +7,6 @@ import torch.nn.functional as F
 CHANNELS_IN = 5  # RGB + Event + Mask
 CHANNELS_OUT = 3  # RGB
 
-IMG_HEIGHT = 480
-IMG_WIDTH = 640
-
 
 class ConvBlock(nn.Module):
     def __init__(
@@ -57,12 +54,15 @@ class UNet(pl.LightningModule):
         )
         self.final = nn.Conv2d(8, CHANNELS_OUT, 1)
 
-    def loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
+    ) -> torch.Tensor:
         # mae + ssim
         mae = F.l1_loss(y_hat, y)
         ssim = 1 - msssim.ms_ssim(y_hat, y)
-        self.log("mae", mae)
-        self.log("ssim", ssim)
+        if stage:
+            self.log(f"{stage}_mae", mae)
+            self.log(f"{stage}_ssim", ssim)
         return mae + ssim
 
     def forward(self, x):
@@ -79,21 +79,21 @@ class UNet(pl.LightningModule):
     def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
-        loss = self.loss(y_hat, y)
+        loss = self.loss(y_hat, y, stage="train")
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
-        loss = self.loss(y_hat, y)
+        loss = self.loss(y_hat, y, stage="val")
         self.log("val_loss", loss)
         return loss
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
-        loss = self.loss(y_hat, y)
+        loss = self.loss(y_hat, y, stage="test")
         self.log("test_loss", loss)
         return loss
 

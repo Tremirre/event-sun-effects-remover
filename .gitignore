@@ -3,3 +3,4 @@ pretrained
 **/*.pyc
 **/*.png
 /data/**/*
+lightning_logs

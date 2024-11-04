@@ -49,8 +49,9 @@ def add_random_point(mask: np.ndarray, thickness: int) -> np.ndarray:
 
 def add_random_curve(mask: np.ndarray, thickness: int) -> np.ndarray:
     h, w = mask.shape[:2]
-    center_x, center_y = np.random.randint(w // 3, 2 * w // 3), np.random.randint(
-        h // 3, 2 * h // 3
+    center_x, center_y = (
+        np.random.randint(w // 3, 2 * w // 3),
+        np.random.randint(h // 3, 2 * h // 3),
     )
     axis_x, axis_y = np.random.randint(0, w // 2), np.random.randint(0, h // 2)
     start_angle = np.random.randint(0, 270)
@@ -118,25 +119,21 @@ def generate_random_mask_batch_by_degree(
 class MaskGenerator:
     def __init__(
         self,
-        image_height: int,
-        image_width: int,
         target_channels: int,
         degree: Degree,
         min_width: int,
         max_width: int,
     ):
-        self.image_height = image_height
-        self.image_width = image_width
         self.target_channels = target_channels
         self.degree = degree
         self.min_width = min_width
         self.max_width = max_width
 
-    def __call__(self, batch_size: int) -> np.ndarray:
+    def __call__(self, height: int, width: int, batch_size: int = 1) -> np.ndarray:
         return generate_random_mask_batch_by_degree(
             batch_size,
-            self.image_height,
-            self.image_width,
+            height,
+            width,
             self.target_channels,
             self.degree,
             self.min_width,

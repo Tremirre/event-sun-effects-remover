@@ -39,6 +39,7 @@ class Args:
     check_every: int
     skip_first_frames: int
     n_homography_strips: int = 4
+    temporal_asift: bool = False
 
     @classmethod
     def from_cli(cls) -> Args:
@@ -90,6 +91,12 @@ class Args:
             default=4,
             help="Number of horizontal homography strips, used to refine the initial homography",
         )
+        parser.add_argument(
+            "--temporal_asift",
+            required=False,
+            action="store_true",
+            help="Use ASIFT for temporal alignment",
+        )
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
@@ -109,58 +116,26 @@ class TemporalMatchResult:
 
     def resolve_final_offset_ms(
         self,
-        src_frames: utils.Frames,
-        rec_frames: utils.Frames,
         window_length: int,
         skipped_ms: int,
     ) -> tuple[int, int]:
-        assert self.matches, "No matches to improve"
-        asift = cv2.AffineFeature.create(cv2.SIFT.create())
-        bf = cv2.BFMatcher()
-        best_matches = np.argsort(self.avg_matches_by_offset)[-10:]
-        best_asift_matches = []
-        logging.info(f"Current optimal index: {best_matches[-1]}")
-        for idx in tqdm.tqdm(best_matches, desc="Refining matches"):
-            align_matches = []
-            align_indices = self.align_indices[idx]
-            for j, (src_idx, rec_idx) in enumerate(align_indices):
-                src_frame = src_frames.array[src_idx]
-                rec_frame = rec_frames.array[rec_idx]
-                src_frame_gs = cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY)
-                _, src_desc = asift.detectAndCompute(src_frame_gs, None)
-                _, rec_desc = asift.detectAndCompute(rec_frame, None)
-                cur_matches = bf.knnMatch(src_desc, rec_desc, k=2)
-                good = []
-                for m, n in cur_matches:
-                    if m.distance < 0.7 * n.distance:
-                        good.append(m)
-                align_matches.append(len(good))
-            best_asift_matches.append(align_matches)
-        best_mean_matches = np.mean(best_asift_matches, axis=1)
-        self.reiterated_matches = best_mean_matches
-        logging.info(f"Best mean matches: {best_mean_matches}")
-        best_reiterated = np.argmax(best_mean_matches)
-        best_offset = best_matches[best_reiterated]
-        logging.info(f"Reiterated best offset: {best_offset}")
+        assert self.matches, "No matches to resolve"
+        avg_matches = self.avg_matches_by_offset
+        best_offset = np.argmax(avg_matches)
         rem = 0
-        if best_offset == 0 or best_offset == len(self.avg_matches_by_offset) - 1:
+        if best_offset == 0 or best_offset == len(avg_matches) - 1:
             logging.warning("Optimal index is at the edge of the range")
         else:
             rem = (
-                -1
-                if self.avg_matches_by_offset[best_offset - 1]
-                > self.avg_matches_by_offset[best_offset + 1]
-                else 1
+                -1 if avg_matches[best_offset - 1] > avg_matches[best_offset + 1] else 1
             )
         rem *= window_length / 2
         return best_offset, best_offset * window_length - skipped_ms + rem
 
     def save_plot(self, path: pathlib.Path) -> None:
-        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-        ax[0].plot(self.avg_matches_by_offset)
-        ax[0].set_title("Average matches by offset")
-        ax[1].plot(self.reiterated_matches)
-        ax[1].set_title("Reiterated matches")
+        plt.plot(self.avg_matches_by_offset, "o-")
+        plt.xlabel("Offset")
+        plt.ylabel("Avg Number of matches")
         plt.savefig(path)
 
     def update(self, matches: list[int], align_indices: list[tuple[int, int]]) -> None:
@@ -303,8 +278,11 @@ if __name__ == "__main__":
     )
     rec_frames = utils.Frames(rec_frames_arr, rec_frames_ts)
 
-    temporal_feature_alg = cv2.ORB.create()
-    temporal_matching_alg = cv2.BFMatcher(cv2.NORM_HAMMING)
+    temporal_feature_alg = cv2.SIFT.create()
+    if args.temporal_asift:
+        logging.info("Using ASIFT for temporal alignment")
+        temporal_feature_alg = cv2.AffineFeature.create(temporal_feature_alg)
+    temporal_matching_alg = cv2.BFMatcher()
 
     logging.info("Resolving temporal offset")
     result = resolve_temporal_offset(
@@ -320,9 +298,9 @@ if __name__ == "__main__":
         const.IMAGES_DIR / f"matches-{args.window_length}-{args.input_video.stem}.png"
     )
     optimal_idx, temporal_offset = result.resolve_final_offset_ms(
-        src_frames, rec_frames, args.window_length, skipped_ms
+        args.window_length, skipped_ms
     )
-    logging.info(f"Temporal offset: {temporal_offset}ms")
+    logging.info(f"Temporal offset: {temporal_offset}ms | Optimal index: {optimal_idx}")
     logging.info(f"Saving matching plot to {matching_img_path}")
     result.save_plot(matching_img_path)
 

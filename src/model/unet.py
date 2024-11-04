@@ -30,11 +30,18 @@ class ConvBlock(nn.Module):
 class UpConvBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int) -> None:
         super().__init__()
-        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, 2, stride=2)
-        self.conv_block = ConvBlock(in_channels, out_channels)
+        # Added output_padding=1 to ensure output size matches skip connection
+        self.upconv = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size=2, stride=2, output_padding=0
+        )
+        self.conv_block = ConvBlock(out_channels * 2, out_channels)
 
     def forward(self, x, x_skip):
         x = F.relu(self.upconv(x))
+        if x.size()[2:] != x_skip.size()[2:]:
+            x = F.interpolate(
+                x, size=x_skip.size()[2:], mode="bilinear", align_corners=False
+            )
         x = torch.cat([x, x_skip], dim=1)
         x = self.conv_block(x)
         return x
@@ -43,16 +50,19 @@ class UpConvBlock(nn.Module):
 class UNet(pl.LightningModule):
     def __init__(self, n_blocks: int) -> None:
         super().__init__()
+        features = [CHANNELS_IN]
+        for i in range(n_blocks):
+            features.append(2 ** (i + 6))
         self.down_blocks = nn.ModuleList(
-            [
-                ConvBlock(CHANNELS_IN if i == 0 else 2 ** (i - 1), 2**i)
-                for i in range(n_blocks)
-            ]
+            [ConvBlock(features[i], features[i + 1]) for i in range(n_blocks)]
         )
         self.up_blocks = nn.ModuleList(
-            [UpConvBlock(2**i, 2 ** (i - 1)) for i in range(n_blocks, 1, -1)]
+            [
+                UpConvBlock(features[i + 1], features[i])
+                for i in range(n_blocks - 1, 0, -1)
+            ]
         )
-        self.final = nn.Conv2d(8, CHANNELS_OUT, 1)
+        self.final = nn.Conv2d(features[1], CHANNELS_OUT, 1)
 
     def loss(
         self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
@@ -71,6 +81,8 @@ class UNet(pl.LightningModule):
             x = block(x)
             x_skips.append(x)
             x = F.max_pool2d(x, 2)
+
+        x_skips = x_skips[:-1]
         for block, x_skip in zip(self.up_blocks, x_skips[::-1]):
             x = block(x, x_skip)
         x = self.final(x)

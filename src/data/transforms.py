@@ -18,13 +18,12 @@ class RandomizedContrastScaler:
         self.min_factor = min_factor
         self.max_factor = max_factor
 
-
-def __call__(self, img_gs: np.ndarray) -> np.ndarray:
-    factor = np.random.uniform(self.min_factor, self.max_factor)
-    min_gs, max_gs = img_gs.min(), img_gs.max()
-    mean_gs = (min_gs + max_gs) / 2
-    img_gs = mean_gs + (img_gs - mean_gs) * factor
-    return np.clip(img_gs, 0, 255).astype(np.uint8)
+    def __call__(self, img_gs: np.ndarray) -> np.ndarray:
+        factor = np.random.uniform(self.min_factor, self.max_factor)
+        min_gs, max_gs = img_gs.min(), img_gs.max()
+        mean_gs = min_gs / 2 + max_gs / 2
+        img_gs = mean_gs + (img_gs - mean_gs) * factor
+        return np.clip(img_gs, 0, 255).astype(np.uint8)
 
 
 class RandomizedMasker:

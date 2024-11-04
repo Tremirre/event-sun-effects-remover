@@ -169,7 +169,7 @@ if __name__ == "__main__":
     if alignment_meta.offset_ms > 0:
         logging.info(f"Applying offset {alignment_meta.offset_ms}ms to events")
         skip_events = ts_counts[: alignment_meta.offset_ms].sum()
-        events = events.array[skip_events:]
+        events.array = events.array[skip_events:]
         ts_counts = ts_counts[alignment_meta.offset_ms :]
     else:
         logging.info(f"Applying offset {-alignment_meta.offset_ms}ms to video")
@@ -179,9 +179,9 @@ if __name__ == "__main__":
         src_frames.timestamps = (
             src_frames.timestamps[skip_frames:] - src_frames.timestamps[skip_frames]
         )
-    assert len(events) == ts_counts.sum(), "Events and counts mismatch"
+    assert len(events.array) == ts_counts.sum(), "Events and counts mismatch"
     overlayed, metrics = overlay_events_on_video(
-        src_frames, events, ts_counts, alignment_meta, model
+        src_frames, events.array, ts_counts, alignment_meta, model
     )
 
     logging.info(f"Accuracy: {metrics[:, 0].mean()}")

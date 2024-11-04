@@ -151,7 +151,8 @@ def read_video(path: pathlib.Path, verbose: bool = True) -> Frames:
         frames.append(frame)
     cap.release()
     timestamps = np.array(timestamps).astype(int)
-    return Frames(np.array(frames), timestamps)
+    frames = np.array(frames)
+    return Frames(frames, timestamps)
 
 
 def crop_vid_to_size(video: np.ndarray, width: int, height: int) -> np.ndarray:

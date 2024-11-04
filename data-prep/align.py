@@ -101,33 +101,66 @@ class Args:
 class TemporalMatchResult:
     matches: list[list[int]] = dataclasses.field(default_factory=list)
     align_indices: list[list[tuple[int, int]]] = dataclasses.field(default_factory=list)
+    reiterated_matches: list[int] = dataclasses.field(default_factory=list)
 
     @property
     def avg_matches_by_offset(self) -> np.ndarray:
         return np.mean(self.matches, axis=1)
 
-    @property
-    def optimal_idx(self) -> int:
-        return np.argmax(self.avg_matches_by_offset)
-
-    def resolve_offset_ms(self, window_length: int, skipped_ms: int) -> int:
-        offset = self.optimal_idx * window_length - skipped_ms
-        avg_matches = self.avg_matches_by_offset
+    def resolve_final_offset_ms(
+        self,
+        src_frames: utils.Frames,
+        rec_frames: utils.Frames,
+        window_length: int,
+        skipped_ms: int,
+    ) -> tuple[int, int]:
+        assert self.matches, "No matches to improve"
+        asift = cv2.AffineFeature.create(cv2.SIFT.create())
+        bf = cv2.BFMatcher()
+        best_matches = np.argsort(self.avg_matches_by_offset)[-10:]
+        best_asift_matches = []
+        logging.info(f"Current optimal index: {best_matches[-1]}")
+        for idx in tqdm.tqdm(best_matches, desc="Refining matches"):
+            align_matches = []
+            align_indices = self.align_indices[idx]
+            for j, (src_idx, rec_idx) in enumerate(align_indices):
+                src_frame = src_frames.array[src_idx]
+                rec_frame = rec_frames.array[rec_idx]
+                src_frame_gs = cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY)
+                _, src_desc = asift.detectAndCompute(src_frame_gs, None)
+                _, rec_desc = asift.detectAndCompute(rec_frame, None)
+                cur_matches = bf.knnMatch(src_desc, rec_desc, k=2)
+                good = []
+                for m, n in cur_matches:
+                    if m.distance < 0.7 * n.distance:
+                        good.append(m)
+                align_matches.append(len(good))
+            best_asift_matches.append(align_matches)
+        best_mean_matches = np.mean(best_asift_matches, axis=1)
+        self.reiterated_matches = best_mean_matches
+        logging.info(f"Best mean matches: {best_mean_matches}")
+        best_reiterated = np.argmax(best_mean_matches)
+        best_offset = best_matches[best_reiterated]
+        logging.info(f"Reiterated best offset: {best_offset}")
         rem = 0
-        if self.optimal_idx == 0 or self.optimal_idx == len(avg_matches) - 1:
+        if best_offset == 0 or best_offset == len(self.avg_matches_by_offset) - 1:
             logging.warning("Optimal index is at the edge of the range")
         else:
             rem = (
                 -1
-                if avg_matches[self.optimal_idx - 1] > avg_matches[self.optimal_idx + 1]
+                if self.avg_matches_by_offset[best_offset - 1]
+                > self.avg_matches_by_offset[best_offset + 1]
                 else 1
             )
-
         rem *= window_length / 2
-        return offset + rem
+        return best_offset, best_offset * window_length - skipped_ms + rem
 
     def save_plot(self, path: pathlib.Path) -> None:
-        plt.plot(self.avg_matches_by_offset, "ro--")
+        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+        ax[0].plot(self.avg_matches_by_offset)
+        ax[0].set_title("Average matches by offset")
+        ax[1].plot(self.reiterated_matches)
+        ax[1].set_title("Reiterated matches")
         plt.savefig(path)
 
     def update(self, matches: list[int], align_indices: list[tuple[int, int]]) -> None:
@@ -157,7 +190,7 @@ def resolve_temporal_offset(
 
     offsets = range(check_offsets)
     if verbose:
-        offsets = tqdm.tqdm(offsets)
+        offsets = tqdm.tqdm(offsets, desc="Checking offsets")
 
     for offset in offsets:
         matches = []
@@ -270,8 +303,8 @@ if __name__ == "__main__":
     )
     rec_frames = utils.Frames(rec_frames_arr, rec_frames_ts)
 
-    temporal_feature_alg = cv2.SIFT.create()
-    temporal_matching_alg = cv2.BFMatcher()
+    temporal_feature_alg = cv2.ORB.create()
+    temporal_matching_alg = cv2.BFMatcher(cv2.NORM_HAMMING)
 
     logging.info("Resolving temporal offset")
     result = resolve_temporal_offset(
@@ -286,9 +319,10 @@ if __name__ == "__main__":
     matching_img_path = (
         const.IMAGES_DIR / f"matches-{args.window_length}-{args.input_video.stem}.png"
     )
-    optimal_idx = result.optimal_idx
-    temporal_offset = result.resolve_offset_ms(args.window_length, skipped_ms)
-    logging.info(f"Optimal index: {optimal_idx} | Temporal offset: {temporal_offset}ms")
+    optimal_idx, temporal_offset = result.resolve_final_offset_ms(
+        src_frames, rec_frames, args.window_length, skipped_ms
+    )
+    logging.info(f"Temporal offset: {temporal_offset}ms")
     logging.info(f"Saving matching plot to {matching_img_path}")
     result.save_plot(matching_img_path)
 
@@ -296,7 +330,7 @@ if __name__ == "__main__":
     spatial_feature_alg = cv2.AffineFeature.create(cv2.SIFT.create())
     spatial_matching_alg = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
     all_specs = []
-    for src_idx, rec_idx in tqdm.tqdm(result.align_indices[result.optimal_idx]):
+    for src_idx, rec_idx in tqdm.tqdm(result.align_indices[optimal_idx]):
         specs = resolve_homography(
             src_frames.array[src_idx],
             rec_frames.array[rec_idx],
@@ -316,7 +350,7 @@ if __name__ == "__main__":
     logging.info(f"Total matches: {sum([spec.matches for spec in best_specs])}")
     ref_path = pathlib.Path(const.IMAGES_DIR) / "refinement.png"
     logging.info(f"Saving refinement result to {ref_path}")
-    save_homography_result(rec_frames.array[result.optimal_idx], best_specs, ref_path)
+    save_homography_result(rec_frames.array[optimal_idx], best_specs, ref_path)
 
     out_meta = const.META_DIR / f"match-{args.input_video.stem}.json"
     logging.info(f"Saving metadata to {out_meta}")

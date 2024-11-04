@@ -1,4 +1,5 @@
 .venv
 pretrained
 **/*.pyc
-data
+**/*.png
+/data/**/*

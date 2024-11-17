@@ -1,3 +1,4 @@
+import logging
 import pathlib
 
 import numpy as np
@@ -7,15 +8,20 @@ import torchvision.transforms as T
 
 from src.data import dataset, transforms
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
+
 
 class EventDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: pathlib.Path,
-        num_workers: int = 4,
+        num_workers: int = 0,
         val_prob: float = 0.1,
         test_prob: float = 0.1,
         batch_size: int = 32,
+        frac_used: float = 1,
     ) -> None:
         super().__init__()
         self.num_workers = num_workers
@@ -23,6 +29,7 @@ class EventDataModule(pl.LightningDataModule):
         self.val_prob = val_prob
         self.test_prob = test_prob
         self.batch_size = batch_size
+        self.frac_used = frac_used
 
     def prepare_data(self) -> None:
         pass
@@ -30,6 +37,8 @@ class EventDataModule(pl.LightningDataModule):
     def setup(self, stage: str) -> None:
         img_paths = list(self.data_dir.glob("**/*.npy"))
         np.random.shuffle(img_paths)  # type: ignore
+        n = len(img_paths)
+        img_paths = img_paths[: int(self.frac_used * n)]
         n = len(img_paths)
         val_n = int(n * self.val_prob)
         test_n = int(n * self.test_prob)
@@ -40,7 +49,7 @@ class EventDataModule(pl.LightningDataModule):
 
         self.train_dataset = dataset.BGREMDataset(
             train_files,
-            masker=transforms.RandomizedMasker(1, 6),
+            masker=transforms.RandomizedMasker(1, 10),
             bgr_transform=T.Compose(
                 [
                     T.ToPILImage(),
@@ -57,7 +66,7 @@ class EventDataModule(pl.LightningDataModule):
         )
         self.val_dataset = dataset.BGREMDataset(
             val_files,
-            masker=transforms.RandomizedMasker(1, 6),
+            masker=transforms.RandomizedMasker(1, 10),
             bgr_transform=T.Compose(
                 [
                     T.ToTensor(),
@@ -66,12 +75,15 @@ class EventDataModule(pl.LightningDataModule):
         )
         self.test_dataset = dataset.BGREMDataset(
             test_files,
-            masker=transforms.RandomizedMasker(1, 6),
+            masker=transforms.RandomizedMasker(1, 10),
             bgr_transform=T.Compose(
                 [
                     T.ToTensor(),
                 ]
             ),
+        )
+        logger.info(
+            f"Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}"
         )
 
     def train_dataloader(self):

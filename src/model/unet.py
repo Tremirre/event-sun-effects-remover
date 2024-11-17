@@ -100,6 +100,20 @@ class UNet(pl.LightningModule):
         y_hat = self(x)
         loss = self.loss(y_hat, y, stage="val")
         self.log("val_loss", loss)
+        if batch_idx == 0:
+            x_rgb = x[:, :3]
+            x_event = x[:, 3:4]
+            x_event = torch.cat([x_event, x_event, x_event], dim=1)
+            x_mask = x[:, 4:5]
+            x_mask = torch.cat([x_mask, x_mask, x_mask], dim=1)
+            x_rgb = torch.where(x_mask > 0, x_event, x_rgb)
+            self.logger.experiment.add_images(
+                "input", x_rgb, global_step=self.global_step
+            )
+            self.logger.experiment.add_images(
+                "output", y_hat, global_step=self.global_step
+            )
+            self.logger.experiment.add_images("target", y, global_step=self.global_step)
         return loss
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):

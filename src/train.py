@@ -20,8 +20,10 @@ np.random.seed(0)
 class Config:
     batch_size: int
     unet_blocks: int
+    unet_depth: int
     max_epochs: int
     frac_used: float
+    num_workers: int = 0
     profile: bool = False
 
     @classmethod
@@ -32,10 +34,19 @@ class Config:
             "--unet-blocks", type=int, default=2, help="Number of U-Net blocks"
         )
         parser.add_argument(
+            "--unet-depth",
+            type=int,
+            default=1,
+            help="Depth of U-Net blocks (number of 1-conv layers per block)",
+        )
+        parser.add_argument(
             "--max-epochs", type=int, default=10, help="Number of epochs"
         )
         parser.add_argument(
             "--frac-used", type=float, default=1, help="Fraction of data used"
+        )
+        parser.add_argument(
+            "--num-workers", type=int, default=0, help="Number of workers"
         )
         parser.add_argument("--profile", action="store_true", help="Enable profiling")
         return cls(**vars(parser.parse_args()))
@@ -45,7 +56,10 @@ if __name__ == "__main__":
     config = Config.from_args()
 
     dm = datamodule.EventDataModule(
-        const.DATA_FOLDER, batch_size=config.batch_size, frac_used=config.frac_used
+        const.DATA_FOLDER,
+        batch_size=config.batch_size,
+        frac_used=config.frac_used,
+        num_workers=config.num_workers,
     )
     logger = loggers.TensorBoardLogger(
         "lightning_logs",
@@ -60,13 +74,18 @@ if __name__ == "__main__":
             record_functions=True,
             schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
         )
-    trainer = pl.Trainer(max_epochs=config.max_epochs, logger=logger, profiler=profiler)
+    trainer = pl.Trainer(
+        max_epochs=config.max_epochs,
+        logger=logger,
+        profiler=profiler,
+        log_every_n_steps=10,
+    )
     if trainer.logger is None:
         print(config)
     else:
         trainer.logger.log_hyperparams(dataclasses.asdict(config))
 
-    model = unet.UNet(config.unet_blocks)
+    model = unet.UNet(config.unet_blocks, config.unet_depth)
 
     trainer.fit(model, dm)
     trainer.test(model, dm)

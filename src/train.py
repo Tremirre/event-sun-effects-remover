@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 
+import dotenv
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -15,6 +16,8 @@ torch.set_float32_matmul_precision("medium")
 torch.manual_seed(0)
 np.random.seed(0)
 
+dotenv.load_dotenv()
+
 
 @dataclasses.dataclass
 class Config:
@@ -25,6 +28,7 @@ class Config:
     frac_used: float
     num_workers: int = 0
     profile: bool = False
+    log_tensorboard: bool = False
 
     @classmethod
     def from_args(cls):
@@ -49,6 +53,9 @@ class Config:
             "--num-workers", type=int, default=0, help="Number of workers"
         )
         parser.add_argument("--profile", action="store_true", help="Enable profiling")
+        parser.add_argument(
+            "--log-tensorboard", action="store_true", help="Log to TensorBoard"
+        )
         return cls(**vars(parser.parse_args()))
 
 
@@ -61,10 +68,13 @@ if __name__ == "__main__":
         frac_used=config.frac_used,
         num_workers=config.num_workers,
     )
-    logger = loggers.TensorBoardLogger(
-        "lightning_logs",
-        name="unet",
-    )
+    if config.log_tensorboard:
+        logger = loggers.TensorBoardLogger(
+            "lightning_logs",
+            name="unet",
+        )
+    else:
+        logger = loggers.NeptuneLogger(log_model_checkpoints=False)
     profiler = None
     if config.profile:
         profiler = profilers.PyTorchProfiler(
@@ -89,3 +99,5 @@ if __name__ == "__main__":
 
     trainer.fit(model, dm)
     trainer.test(model, dm)
+
+    logger.log_model_summary(model, input_data=torch.zeros(1, 5, 480, 640))

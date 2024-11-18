@@ -13,9 +13,13 @@ class ConvBlock(nn.Module):
         self, in_channels: int, out_channels: int, depth: int, batch_norm: bool = True
     ) -> None:
         super().__init__()
-        self.convs[nn.Conv2d(in_channels, out_channels, 3, padding=1)]
-        for _ in range(depth):
-            self.convs.append(nn.Conv2d(out_channels, out_channels, 3, padding=1))
+        self.convs = nn.ModuleList(
+            [nn.Conv2d(in_channels, out_channels, 3, padding=1)]
+            + [
+                nn.Conv2d(out_channels, out_channels, 3, padding=1)
+                for _ in range(depth)
+            ]
+        )
         self.batch_norm = batch_norm
         if batch_norm:
             self.bn = nn.BatchNorm2d(out_channels)

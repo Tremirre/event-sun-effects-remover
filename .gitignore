@@ -3,5 +3,6 @@ pretrained
 **/*.pyc
 **/*.png
 /data/**/*
+/excluded/**/*
 lightning_logs
 .env

@@ -75,6 +75,7 @@ if __name__ == "__main__":
         )
     else:
         logger = loggers.NeptuneLogger(log_model_checkpoints=False)
+    logger.experiment["metadata/config"] = dataclasses.asdict(config)
     profiler = None
     if config.profile:
         profiler = profilers.PyTorchProfiler(
@@ -100,4 +101,4 @@ if __name__ == "__main__":
     trainer.fit(model, dm)
     trainer.test(model, dm)
 
-    logger.log_model_summary(model, input_data=torch.zeros(1, 5, 480, 640))
+    logger.experiment.stop()

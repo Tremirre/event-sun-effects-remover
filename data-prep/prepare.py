@@ -5,14 +5,15 @@ import dataclasses
 import logging
 import pathlib
 
-import const
 import cv2
 import numpy as np
 import torch
 import tqdm
-import utils
 from rpg_e2vid.utils.inference_utils import events_to_voxel_grid
 from rpg_e2vid.utils.loading_utils import load_model
+
+import const
+import utils
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s"
@@ -100,8 +101,7 @@ def export_frames(
         event_index = events_end
         if not len(window):
             break
-        if i % skip_every != 0:
-            continue
+
         voxel_grid = events_to_voxel_grid(
             window, 5, src_frames.width, src_frames.height
         )
@@ -109,6 +109,10 @@ def export_frames(
         with torch.no_grad():
             pred, prev = model(voxel_grid, prev)
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
+
+        if i % skip_every != 0:
+            continue
+
         pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)
         pred_gb = cv2.GaussianBlur(pred, (0, 0), 3)
         pred = cv2.addWeighted(pred, 1.5, pred_gb, -0.5, 0)

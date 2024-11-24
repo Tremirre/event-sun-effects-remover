@@ -38,6 +38,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         event_mask = img[:, :, 4]
         mask = self.masker(bgr, event_mask)
         target = bgr.copy()
+        mask = np.expand_dims(mask, axis=-1)
         mask_expanded = np.repeat(mask, 3, axis=-1)
         bgr = np.where(mask_expanded, 0, bgr)
 

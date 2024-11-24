@@ -30,20 +30,11 @@ class RandomizedMasker:
     def __init__(self, min_width: int, max_width: int):
         self.min_width = min_width
         self.max_width = max_width
-        self.generators = [
-            mask.MaskGenerator(
-                target_channels=1,
-                degree=degree,
-                min_width=min_width,
-                max_width=max_width,
-            )
-            for degree in mask.Degree
-        ]
+        self.generator = mask.DilatingMaskGenerator(5)
 
     def __call__(self, bgr: np.ndarray, event_mask: np.ndarray) -> np.ndarray:
         height, width = bgr.shape[:2]
-        generator = np.random.choice(self.generators)  # type: ignore
-        mask = generator(height, width)[0]
+        mask = self.generator(height, width)
         mask[event_mask == 0] = 0
         return mask
 

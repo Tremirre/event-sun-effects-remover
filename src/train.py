@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import logging
 
 import dotenv
 import numpy as np
@@ -10,13 +11,17 @@ from torch.profiler import tensorboard_trace_handler
 
 from src import const
 from src.data import datamodule
-from src.model import unet
+from src.model import noop, unet
 
 torch.set_float32_matmul_precision("medium")
 torch.manual_seed(0)
 np.random.seed(0)
 
 dotenv.load_dotenv()
+logging.basicConfig(
+    level=logging.INFO, format="[%(asctime)s-%(name)s-%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -29,6 +34,7 @@ class Config:
     num_workers: int = 0
     profile: bool = False
     log_tensorboard: bool = False
+    run_tags: str = "default"
 
     @classmethod
     def from_args(cls):
@@ -56,7 +62,45 @@ class Config:
         parser.add_argument(
             "--log-tensorboard", action="store_true", help="Log to TensorBoard"
         )
+        parser.add_argument(
+            "--run-tags",
+            type=str,
+            default="default",
+            help="Tags for the run, comma-separated",
+        )
         return cls(**vars(parser.parse_args()))
+
+
+def logger_from_config(config: Config) -> loggers.Logger:
+    if config.log_tensorboard:
+        return loggers.TensorBoardLogger(
+            "lightning_logs",
+            name="unet",
+        )
+    else:
+        return loggers.NeptuneLogger(
+            log_model_checkpoints=False, tags=config.run_tags.split(",")
+        )
+
+
+def profiler_from_config(config: Config) -> profilers.Profiler | None:
+    if config.profile:
+        return profilers.PyTorchProfiler(
+            on_trace_ready=tensorboard_trace_handler("lightning_logs/profiler0"),
+            profile_memory=True,
+            record_shapes=True,
+            record_functions=True,
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+        )
+    return None
+
+
+def model_from_config(config: Config) -> pl.LightningModule:
+    if config.unet_blocks > 0:
+        return unet.UNet(config.unet_blocks, config.unet_depth)
+    else:
+        logger.info("Using NoOp model")
+        return noop.NoOp()
 
 
 if __name__ == "__main__":
@@ -68,37 +112,28 @@ if __name__ == "__main__":
         frac_used=config.frac_used,
         num_workers=config.num_workers,
     )
-    if config.log_tensorboard:
-        logger = loggers.TensorBoardLogger(
-            "lightning_logs",
-            name="unet",
-        )
-    else:
-        logger = loggers.NeptuneLogger(log_model_checkpoints=False)
-    logger.experiment["metadata/config"] = dataclasses.asdict(config)
-    profiler = None
-    if config.profile:
-        profiler = profilers.PyTorchProfiler(
-            on_trace_ready=tensorboard_trace_handler("lightning_logs/profiler0"),
-            profile_memory=True,
-            record_shapes=True,
-            record_functions=True,
-            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
-        )
+    run_logger = logger_from_config(config)
+    profiler = profiler_from_config(config)
+
     trainer = pl.Trainer(
         max_epochs=config.max_epochs,
-        logger=logger,
+        logger=run_logger,
         profiler=profiler,
         log_every_n_steps=10,
     )
+    dataset_sizes = dm.get_dataset_sizes()
+    config_dict = dataclasses.asdict(config)
     if trainer.logger is None:
-        print(config)
+        logger.warning("No logger found")
+        logger.info(config_dict)
+        logger.info(dataset_sizes)
     else:
-        trainer.logger.log_hyperparams(dataclasses.asdict(config))
+        trainer.logger.log_hyperparams(config_dict)
+        trainer.logger.log_hyperparams(dataset_sizes)
 
-    model = unet.UNet(config.unet_blocks, config.unet_depth)
-
+    model = model_from_config(config)
     trainer.fit(model, dm)
-    trainer.test(model, dm)
+    if config.unet_blocks:
+        trainer.test(model, dm)
 
-    logger.experiment.stop()
+    run_logger.experiment.stop()

@@ -6,3 +6,4 @@ pretrained
 /excluded/**/*
 lightning_logs
 .env
+.neptune

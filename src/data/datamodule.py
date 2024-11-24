@@ -31,21 +31,25 @@ class EventDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.frac_used = frac_used
 
+        self.img_paths = list(self.data_dir.glob("**/*.npy"))
+        np.random.shuffle(self.img_paths)  # type: ignore
+        n = len(self.img_paths)
+        self.img_paths = self.img_paths[: int(self.frac_used * n)]
+        n = len(self.img_paths)
+        self.val_n = int(n * self.val_prob)
+        self.test_n = int(n * self.test_prob)
+
+        self.train_dataset = None
+        self.val_dataset = None
+        self.test_dataset = None
+
     def prepare_data(self) -> None:
         pass
 
     def setup(self, stage: str) -> None:
-        img_paths = list(self.data_dir.glob("**/*.npy"))
-        np.random.shuffle(img_paths)  # type: ignore
-        n = len(img_paths)
-        img_paths = img_paths[: int(self.frac_used * n)]
-        n = len(img_paths)
-        val_n = int(n * self.val_prob)
-        test_n = int(n * self.test_prob)
-
-        val_files = img_paths[:val_n]
-        test_files = img_paths[val_n : val_n + test_n]
-        train_files = img_paths[val_n + test_n :]
+        val_files = self.img_paths[: self.val_n]
+        test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
+        train_files = self.img_paths[self.val_n + self.test_n :]
 
         self.train_dataset = dataset.BGREMDataset(
             train_files,
@@ -82,9 +86,14 @@ class EventDataModule(pl.LightningDataModule):
                 ]
             ),
         )
-        logger.info(
-            f"Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}"
-        )
+
+    def get_dataset_sizes(self) -> dict[str, int]:
+        train_n = len(self.img_paths) - self.val_n - self.test_n
+        return {
+            "train_size": train_n,
+            "val_size": self.val_n,
+            "test_size": self.test_n,
+        }
 
     def train_dataloader(self):
         return torch.utils.data.DataLoader(
@@ -92,6 +101,7 @@ class EventDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
+            persistent_workers=True,
         )
 
     def val_dataloader(self):
@@ -100,6 +110,7 @@ class EventDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            persistent_workers=True,
         )
 
     def test_dataloader(self):

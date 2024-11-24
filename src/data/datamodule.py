@@ -17,6 +17,7 @@ class EventDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: pathlib.Path,
+        ref_dir: pathlib.Path | None = None,
         num_workers: int = 0,
         val_prob: float = 0.1,
         test_prob: float = 0.1,
@@ -30,7 +31,8 @@ class EventDataModule(pl.LightningDataModule):
         self.test_prob = test_prob
         self.batch_size = batch_size
         self.frac_used = frac_used
-
+        self.ref_dir = ref_dir
+        self.ref_paths = list(ref_dir.glob("**/*.npy")) if ref_dir else []
         self.img_paths = list(self.data_dir.glob("**/*.npy"))
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
@@ -42,6 +44,7 @@ class EventDataModule(pl.LightningDataModule):
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
+        self.ref_dataset = None
 
     def prepare_data(self) -> None:
         pass
@@ -86,6 +89,15 @@ class EventDataModule(pl.LightningDataModule):
                 ]
             ),
         )
+        self.ref_dataset = dataset.BGREMDataset(
+            self.ref_paths,
+            masker=transforms.FullMasker(),
+            bgr_transform=T.Compose(
+                [
+                    T.ToTensor(),
+                ]
+            ),
+        )
 
     def get_dataset_sizes(self) -> dict[str, int]:
         train_n = len(self.img_paths) - self.val_n - self.test_n
@@ -93,6 +105,7 @@ class EventDataModule(pl.LightningDataModule):
             "train_size": train_n,
             "val_size": self.val_n,
             "test_size": self.test_n,
+            "ref_size": len(self.ref_paths),
         }
 
     def train_dataloader(self):
@@ -119,4 +132,12 @@ class EventDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+        )
+
+    def ref_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.ref_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=0,
         )

@@ -14,13 +14,25 @@ class NoOp(pl.LightningModule):
         return x[:, :3]
 
     def training_step(self, batch, batch_idx):
-        return torch.tensor(0.0)
+        x, y = batch
+        return {
+            "loss": torch.tensor(0.0),
+            "pred": self(x),
+        }
 
     def validation_step(self, batch, batch_idx):
-        return torch.tensor(0.0)
+        x, y = batch
+        return {
+            "loss": torch.tensor(0.0),
+            "pred": self(x),
+        }
 
     def test_step(self, batch, batch_idx):
-        return torch.tensor(0.0)
+        x, y = batch
+        return {
+            "loss": torch.tensor(0.0),
+            "pred": self(x),
+        }
 
     def configure_optimizers(self):
         return None

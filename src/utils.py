@@ -1,8 +1,4 @@
-import pathlib
-
-import numpy as np
 import PIL.Image
-import pytorch_lightning as pl
 import pytorch_lightning.loggers as pl_loggers
 import torch
 
@@ -43,26 +39,3 @@ def log_image_batch(
         comparison = comparison[:, :, ::-1]
         comparison = PIL.Image.fromarray(comparison)
         logger.experiment[f"{tag}_comparison"].append(comparison)
-
-
-class ReferenceImageLogger(pl.Callback):
-    def __init__(self, ref_path: pathlib.Path, device: torch.device) -> None:
-        super().__init__()
-        if not ref_path.exists():
-            raise FileNotFoundError(f"Reference image {ref_path} does not exist")
-        refs = []
-        for ref_obj in ref_path.glob("*.npy"):
-            ref = np.load(ref_obj)
-            refs.append(ref)
-        self.refs = torch.tensor(refs).float()
-        self.refs = self.refs.to(device)
-
-    def on_train_epoch_end(
-        self, trainer: pl.Trainer, pl_module: pl.LightningModule
-    ) -> None:
-        pl_module.eval()
-        with torch.no_grad():
-            preds = pl_module(self.refs)
-            log_image_batch(
-                self.refs, preds, None, trainer.logger, trainer.global_step, "ref"
-            )

@@ -11,7 +11,7 @@ from pytorch_lightning import loggers, profilers
 from torch.profiler import tensorboard_trace_handler
 
 from src import const
-from src.callbacks.ref_logger import ReferenceImageLogger
+from src.callbacks import image_loggers
 from src.data import datamodule
 from src.model import noop, unet
 
@@ -21,7 +21,7 @@ np.random.seed(0)
 
 dotenv.load_dotenv()
 logging.basicConfig(
-    level=logging.INFO, format="[%(asctime)s-%(name)s-%(levelname)s] %(message)s"
+    level=logging.INFO, format="[%(asctime)s %(name)s %(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -115,24 +115,25 @@ if __name__ == "__main__":
 
     dm = datamodule.EventDataModule(
         const.DATA_FOLDER,
+        config.ref_path,
         batch_size=config.batch_size,
         frac_used=config.frac_used,
         num_workers=config.num_workers,
     )
     run_logger = logger_from_config(config)
     profiler = profiler_from_config(config)
-    callbacks = []
-    if config.ref_path:
-        device = (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        )
-        callbacks.append(ReferenceImageLogger(config.ref_path, device))
+    callbacks = [image_loggers.ValBatchImageLogger()]
+    if dm.ref_paths:
+        logger.info("Enabling reference image logging")
+        ref_img_logger = image_loggers.RefImageLogger(dm.ref_dataloader())
+        callbacks.append(ref_img_logger)
 
     trainer = pl.Trainer(
         max_epochs=config.max_epochs,
         logger=run_logger,
         profiler=profiler,
         log_every_n_steps=10,
+        callbacks=callbacks,
     )
     dataset_sizes = dm.get_dataset_sizes()
     config_dict = dataclasses.asdict(config)

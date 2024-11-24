@@ -4,8 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.callbacks.ref_logger import log_image_batch
-
 CHANNELS_IN = 5  # RGB + Event + Mask
 CHANNELS_OUT = 3  # RGB
 
@@ -104,23 +102,30 @@ class UNet(pl.LightningModule):
         y_hat = self(x)
         loss = self.loss(y_hat, y, stage="train")
         self.log("train_loss", loss)
-        return loss
+        return {
+            "loss": loss,
+            "pred": y_hat,
+        }
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
         loss = self.loss(y_hat, y, stage="val")
         self.log("val_loss", loss)
-        if batch_idx == 0:
-            log_image_batch(x, y_hat, y, self.logger, self.global_step, "val")
-        return loss
+        return {
+            "loss": loss,
+            "pred": y_hat,
+        }
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
         y_hat = self(x)
         loss = self.loss(y_hat, y, stage="test")
         self.log("test_loss", loss)
-        return loss
+        return {
+            "loss": loss,
+            "pred": y_hat,
+        }
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-3)  # type: ignore

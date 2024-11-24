@@ -46,3 +46,8 @@ class RandomizedMasker:
         mask = generator(height, width)[0]
         mask[event_mask == 0] = 0
         return mask
+
+
+class FullMasker:
+    def __call__(self, bgr: np.ndarray, event_mask: np.ndarray) -> np.ndarray:
+        return event_mask

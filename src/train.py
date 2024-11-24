@@ -1,7 +1,6 @@
 import argparse
 import dataclasses
 import logging
-import pathlib
 
 import dotenv
 import numpy as np
@@ -37,7 +36,6 @@ class Config:
     profile: bool = False
     log_tensorboard: bool = False
     run_tags: str = "default"
-    ref_path: pathlib.Path = None
 
     @classmethod
     def from_args(cls):
@@ -70,12 +68,6 @@ class Config:
             type=str,
             default="default",
             help="Tags for the run, comma-separated",
-        )
-        parser.add_argument(
-            "--ref-path",
-            type=pathlib.Path,
-            default=None,
-            help="Path to reference images",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -114,8 +106,8 @@ if __name__ == "__main__":
     config = Config.from_args()
 
     dm = datamodule.EventDataModule(
-        const.DATA_FOLDER,
-        config.ref_path,
+        const.TRAIN_VAL_TEST_FOLDER,
+        const.REF_FOLDER,
         batch_size=config.batch_size,
         frac_used=config.frac_used,
         num_workers=config.num_workers,

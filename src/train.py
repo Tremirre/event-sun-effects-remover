@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 import logging
+import pathlib
 
 import dotenv
 import numpy as np
@@ -10,6 +11,7 @@ from pytorch_lightning import loggers, profilers
 from torch.profiler import tensorboard_trace_handler
 
 from src import const
+from src.callbacks.ref_logger import ReferenceImageLogger
 from src.data import datamodule
 from src.model import noop, unet
 
@@ -35,6 +37,7 @@ class Config:
     profile: bool = False
     log_tensorboard: bool = False
     run_tags: str = "default"
+    ref_path: pathlib.Path = None
 
     @classmethod
     def from_args(cls):
@@ -68,6 +71,12 @@ class Config:
             default="default",
             help="Tags for the run, comma-separated",
         )
+        parser.add_argument(
+            "--ref-path",
+            type=pathlib.Path,
+            default=None,
+            help="Path to reference images",
+        )
         return cls(**vars(parser.parse_args()))
 
 
@@ -77,10 +86,9 @@ def logger_from_config(config: Config) -> loggers.Logger:
             "lightning_logs",
             name="unet",
         )
-    else:
-        return loggers.NeptuneLogger(
-            log_model_checkpoints=False, tags=config.run_tags.split(",")
-        )
+    return loggers.NeptuneLogger(
+        log_model_checkpoints=False, tags=config.run_tags.split(",")
+    )
 
 
 def profiler_from_config(config: Config) -> profilers.Profiler | None:
@@ -98,9 +106,8 @@ def profiler_from_config(config: Config) -> profilers.Profiler | None:
 def model_from_config(config: Config) -> pl.LightningModule:
     if config.unet_blocks > 0:
         return unet.UNet(config.unet_blocks, config.unet_depth)
-    else:
-        logger.info("Using NoOp model")
-        return noop.NoOp()
+    logger.info("Using NoOp model")
+    return noop.NoOp()
 
 
 if __name__ == "__main__":
@@ -114,6 +121,12 @@ if __name__ == "__main__":
     )
     run_logger = logger_from_config(config)
     profiler = profiler_from_config(config)
+    callbacks = []
+    if config.ref_path:
+        device = (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        )
+        callbacks.append(ReferenceImageLogger(config.ref_path, device))
 
     trainer = pl.Trainer(
         max_epochs=config.max_epochs,
@@ -123,13 +136,8 @@ if __name__ == "__main__":
     )
     dataset_sizes = dm.get_dataset_sizes()
     config_dict = dataclasses.asdict(config)
-    if trainer.logger is None:
-        logger.warning("No logger found")
-        logger.info(config_dict)
-        logger.info(dataset_sizes)
-    else:
-        trainer.logger.log_hyperparams(config_dict)
-        trainer.logger.log_hyperparams(dataset_sizes)
+    trainer.logger.log_hyperparams(config_dict)
+    trainer.logger.log_hyperparams(dataset_sizes)
 
     model = model_from_config(config)
     trainer.fit(model, dm)

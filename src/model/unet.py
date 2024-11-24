@@ -1,9 +1,10 @@
-import PIL.Image
 import pytorch_lightning as pl
 import pytorch_msssim as msssim
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from src.callbacks.ref_logger import log_image_batch
 
 CHANNELS_IN = 5  # RGB + Event + Mask
 CHANNELS_OUT = 3  # RGB
@@ -111,36 +112,7 @@ class UNet(pl.LightningModule):
         loss = self.loss(y_hat, y, stage="val")
         self.log("val_loss", loss)
         if batch_idx == 0:
-            x_bgr = x[:, :3]
-            x_event = x[:, 3:4]
-            x_event = torch.cat([x_event, x_event, x_event], dim=1)
-            x_mask = x[:, 4:5]
-            x_mask = torch.cat([x_mask, x_mask, x_mask], dim=1)
-            x_bgr = torch.where(x_mask > 0, x_event, x_bgr)
-            if self.logger.__class__.__name__ == "TensorBoardLogger":
-                self.logger.experiment.add_images(
-                    "input", x_bgr, global_step=self.global_step
-                )
-                self.logger.experiment.add_images(
-                    "output", y_hat, global_step=self.global_step
-                )
-                self.logger.experiment.add_images(
-                    "target", y, global_step=self.global_step
-                )
-            else:
-                x_bgr = torch.dstack(x_bgr.unbind(0))
-                y_hat = torch.dstack(y_hat.unbind(0))
-                y = torch.dstack(y.unbind(0))
-                x_bgr = x_bgr.permute(1, 2, 0)
-                y_hat = y_hat.permute(1, 2, 0)
-                y = y.permute(1, 2, 0)
-
-                comparison = torch.cat([x_bgr, y_hat, y], dim=0)
-                comparison = comparison.cpu().numpy()
-                comparison = (comparison * 255).astype("uint8")
-                comparison = comparison[:, :, ::-1]
-                comparison = PIL.Image.fromarray(comparison)
-                self.logger.experiment["comparison"].append(comparison)
+            log_image_batch(x, y_hat, y, self.logger, self.global_step, "val")
         return loss
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):

@@ -116,8 +116,9 @@ if __name__ == "__main__":
     profiler = profiler_from_config(config)
     callbacks = [image_loggers.ValBatchImageLogger()]
     if dm.ref_paths:
+        dm.setup("ref")
         logger.info("Enabling reference image logging")
-        ref_img_logger = image_loggers.RefImageLogger(dm.ref_dataloader())
+        ref_img_logger = image_loggers.ReferenceImageLogger(dm.ref_dataloader())
         callbacks.append(ref_img_logger)
 
     trainer = pl.Trainer(

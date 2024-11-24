@@ -54,50 +54,54 @@ class EventDataModule(pl.LightningDataModule):
         test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
         train_files = self.img_paths[self.val_n + self.test_n :]
 
-        self.train_dataset = dataset.BGREMDataset(
-            train_files,
-            masker=transforms.RandomizedMasker(5, 20),
-            bgr_transform=T.Compose(
-                [
-                    T.ToPILImage(),
-                    T.RandomHorizontalFlip(),
-                    T.ToTensor(),
-                ]
-            ),
-            event_transform=T.Compose(
-                [
-                    transforms.RandomizedBrightnessScaler(0.5, 1.5),
-                    transforms.RandomizedContrastScaler(0.5, 1.5),
-                ]
-            ),
-        )
-        self.val_dataset = dataset.BGREMDataset(
-            val_files,
-            masker=transforms.RandomizedMasker(5, 20),
-            bgr_transform=T.Compose(
-                [
-                    T.ToTensor(),
-                ]
-            ),
-        )
-        self.test_dataset = dataset.BGREMDataset(
-            test_files,
-            masker=transforms.RandomizedMasker(5, 20),
-            bgr_transform=T.Compose(
-                [
-                    T.ToTensor(),
-                ]
-            ),
-        )
-        self.ref_dataset = dataset.BGREMDataset(
-            self.ref_paths,
-            masker=transforms.FullMasker(),
-            bgr_transform=T.Compose(
-                [
-                    T.ToTensor(),
-                ]
-            ),
-        )
+        logger.info(f"Setting up datasets for stage: {stage}")
+        if stage == "fit" or stage is None:
+            self.train_dataset = dataset.BGREMDataset(
+                train_files,
+                masker=transforms.RandomizedMasker(5, 20),
+                bgr_transform=T.Compose(
+                    [
+                        T.ToPILImage(),
+                        T.RandomHorizontalFlip(),
+                        T.ToTensor(),
+                    ]
+                ),
+                event_transform=T.Compose(
+                    [
+                        transforms.RandomizedBrightnessScaler(0.5, 1.5),
+                        transforms.RandomizedContrastScaler(0.5, 1.5),
+                    ]
+                ),
+            )
+            self.val_dataset = dataset.BGREMDataset(
+                val_files,
+                masker=transforms.RandomizedMasker(5, 20),
+                bgr_transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+            )
+        if stage == "test" or stage is None:
+            self.test_dataset = dataset.BGREMDataset(
+                test_files,
+                masker=transforms.RandomizedMasker(5, 20),
+                bgr_transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+            )
+        if stage == "ref" or stage is None:
+            self.ref_dataset = dataset.BGREMDataset(
+                self.ref_paths,
+                masker=transforms.FullMasker(),
+                bgr_transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+            )
 
     def get_dataset_sizes(self) -> dict[str, int]:
         train_n = len(self.img_paths) - self.val_n - self.test_n

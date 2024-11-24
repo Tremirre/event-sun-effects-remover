@@ -106,8 +106,8 @@ if __name__ == "__main__":
     config = Config.from_args()
 
     dm = datamodule.EventDataModule(
-        const.TRAIN_VAL_TEST_FOLDER,
-        const.REF_FOLDER,
+        const.TRAIN_VAL_TEST_DIR,
+        const.REF_DIR,
         batch_size=config.batch_size,
         frac_used=config.frac_used,
         num_workers=config.num_workers,

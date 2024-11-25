@@ -1,0 +1,8 @@
+data
+data-prep
+.git
+.mypy_cache
+.nepute
+.vscode
+lightning_logs
+pretrained

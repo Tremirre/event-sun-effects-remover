@@ -22,6 +22,8 @@ class ReferenceImageLogger(pl.Callback):
         with torch.no_grad():
             for i, batch in enumerate(self.loader):
                 x, y = batch
+                x = x.to(pl_module.device)
+                y = y.to(pl_module.device)
                 y_hat = pl_module(x)
                 log_image_batch(
                     x, y_hat, y, trainer.logger, trainer.global_step, f"ref_{i}"

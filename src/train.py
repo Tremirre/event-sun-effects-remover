@@ -36,6 +36,7 @@ class Config:
     profile: bool = False
     log_tensorboard: bool = False
     run_tags: str = "default"
+    save: bool = False
 
     @classmethod
     def from_args(cls):
@@ -69,6 +70,7 @@ class Config:
             default="default",
             help="Tags for the run, comma-separated",
         )
+        parser.add_argument("--save", action="store_true", help="Save the model")
         return cls(**vars(parser.parse_args()))
 
 
@@ -138,4 +140,10 @@ if __name__ == "__main__":
     if config.unet_blocks:
         trainer.test(model, dm)
 
+    if config.save:
+        logger.info("Saving model")
+        torch.save(model.state_dict(), "model.pth")
+        if isinstance(run_logger, loggers.NeptuneLogger):
+            logger.info("Uploading model to Neptune")
+            run_logger.experiment["model"].upload("model.pth")
     run_logger.experiment.stop()

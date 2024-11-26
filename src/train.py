@@ -127,7 +127,7 @@ if __name__ == "__main__":
         max_epochs=config.max_epochs,
         logger=run_logger,
         profiler=profiler,
-        log_every_n_steps=10,
+        log_every_n_steps=1,
         callbacks=callbacks,
     )
     dataset_sizes = dm.get_dataset_sizes()

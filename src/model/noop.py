@@ -37,7 +37,5 @@ class NoOp(pl.LightningModule):
     def configure_optimizers(self):
         return None
 
-    def backward(
-        self, loss: torch.Tensor, *args: torch.Any, **kwargs: torch.Any
-    ) -> None:
+    def backward(self, loss: torch.Tensor, *args, **kwargs) -> None:
         pass

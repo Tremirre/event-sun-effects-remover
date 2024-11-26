@@ -1,0 +1,7 @@
+python-dotenv
+opencv-python==4.10.*
+pytorch-lightning==2.4.*
+neptune
+pillow==10.2.*
+pytorch-mssim==1.0.*
+

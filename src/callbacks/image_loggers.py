@@ -45,5 +45,7 @@ class ValBatchImageLogger(pl.Callback):
 
         logger.info("Logging validation batch")
         x, y = batch
-        y_hat = outputs["pred"]
+        x = x[:8]
+        y = y[:8]
+        y_hat = outputs["pred"][:8]
         log_image_batch(x, y_hat, y, trainer.logger, trainer.global_step, "val_0")

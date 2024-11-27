@@ -31,6 +31,7 @@ class Config:
     unet_blocks: int
     unet_depth: int
     unet_kernel: int
+    unet_fft: bool
     max_epochs: int
     frac_used: float
     num_workers: int = 0
@@ -54,6 +55,11 @@ class Config:
         )
         parser.add_argument(
             "--unet-kernel", type=int, default=3, help="Kernel size of U-Net blocks"
+        )
+        parser.add_argument(
+            "--unet-fft",
+            action="store_true",
+            help="Use Fourier Convolution in U-Net blocks",
         )
         parser.add_argument(
             "--max-epochs", type=int, default=10, help="Number of epochs"
@@ -103,7 +109,9 @@ def profiler_from_config(config: Config) -> profilers.Profiler | None:
 
 def model_from_config(config: Config) -> pl.LightningModule:
     if config.unet_blocks > 0:
-        return unet.UNet(config.unet_blocks, config.unet_depth)
+        return unet.UNet(
+            config.unet_blocks, config.unet_depth, config.unet_kernel, config.unet_fft
+        )
     logger.info("Using NoOp model")
     return noop.NoOp()
 

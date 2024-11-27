@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .ffconv import FourierConvolution
+
 CHANNELS_IN = 5  # RGB + Event + Mask
 CHANNELS_OUT = 3  # RGB
 
@@ -16,6 +18,7 @@ class ConvBlock(nn.Module):
         depth: int,
         kernel_size: int = 3,
         batch_norm: bool = True,
+        with_fft: bool = False,
     ) -> None:
         super().__init__()
         self.convs = nn.ModuleList(
@@ -25,6 +28,8 @@ class ConvBlock(nn.Module):
                 for _ in range(depth)
             ]
         )
+        if with_fft:
+            self.convs.append(FourierConvolution(out_channels, out_channels))
         self.batch_norm = batch_norm
         if batch_norm:
             self.bn = nn.BatchNorm2d(out_channels)
@@ -39,7 +44,12 @@ class ConvBlock(nn.Module):
 
 class UpConvBlock(nn.Module):
     def __init__(
-        self, in_channels: int, out_channels: int, depth: int, kernel_size: int = 3
+        self,
+        in_channels: int,
+        out_channels: int,
+        depth: int,
+        kernel_size: int = 3,
+        with_fft: bool = False,
     ) -> None:
         super().__init__()
         # Added output_padding=1 to ensure output size matches skip connection
@@ -50,7 +60,9 @@ class UpConvBlock(nn.Module):
             stride=2,
             output_padding=0,
         )
-        self.conv_block = ConvBlock(out_channels * 2, out_channels, depth, kernel_size)
+        self.conv_block = ConvBlock(
+            out_channels * 2, out_channels, depth, kernel_size, with_fft=with_fft
+        )
 
     def forward(self, x, x_skip):
         x = F.relu(self.upconv(x))
@@ -64,20 +76,38 @@ class UpConvBlock(nn.Module):
 
 
 class UNet(pl.LightningModule):
-    def __init__(self, n_blocks: int, block_depth: int, kernel_size: int = 3) -> None:
+    def __init__(
+        self,
+        n_blocks: int,
+        block_depth: int,
+        kernel_size: int = 3,
+        with_fft: bool = False,
+    ) -> None:
         super().__init__()
         features = [CHANNELS_IN]
         for i in range(n_blocks):
             features.append(2 ** (i + 6))
         self.down_blocks = nn.ModuleList(
             [
-                ConvBlock(features[i], features[i + 1], block_depth, kernel_size)
+                ConvBlock(
+                    features[i],
+                    features[i + 1],
+                    block_depth,
+                    kernel_size,
+                    with_fft=with_fft,
+                )
                 for i in range(n_blocks)
             ]
         )
         self.up_blocks = nn.ModuleList(
             [
-                UpConvBlock(features[i + 1], features[i], block_depth, kernel_size)
+                UpConvBlock(
+                    features[i + 1],
+                    features[i],
+                    block_depth,
+                    kernel_size,
+                    with_fft=with_fft,
+                )
                 for i in range(n_blocks - 1, 0, -1)
             ]
         )

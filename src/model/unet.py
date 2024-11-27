@@ -1,13 +1,18 @@
+import logging
+
 import pytorch_lightning as pl
 import pytorch_msssim as msssim
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .ffconv import FourierConvolution
+from .ffconv import FastFourierConvolution as FourierConvolution
 
 CHANNELS_IN = 5  # RGB + Event + Mask
 CHANNELS_OUT = 3  # RGB
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class ConvBlock(nn.Module):
@@ -20,11 +25,12 @@ class ConvBlock(nn.Module):
         batch_norm: bool = True,
         with_fft: bool = False,
     ) -> None:
+        padding = kernel_size // 2
         super().__init__()
         self.convs = nn.ModuleList(
-            [nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)]
+            [nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding)]
             + [
-                nn.Conv2d(out_channels, out_channels, kernel_size, padding=1)
+                nn.Conv2d(out_channels, out_channels, kernel_size, padding=padding)
                 for _ in range(depth)
             ]
         )
@@ -134,6 +140,7 @@ class UNet(pl.LightningModule):
         x_skips = x_skips[:-1]
         for block, x_skip in zip(self.up_blocks, x_skips[::-1]):
             x = block(x, x_skip)
+
         x = self.final(x)
         x = torch.sigmoid(x)
         return x

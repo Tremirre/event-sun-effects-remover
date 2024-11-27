@@ -113,6 +113,7 @@ class EventDataModule(pl.LightningDataModule):
         }
 
     def train_dataloader(self):
+        assert self.train_dataset is not None, "Train dataset not set up"
         return torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -122,6 +123,7 @@ class EventDataModule(pl.LightningDataModule):
         )
 
     def val_dataloader(self):
+        assert self.val_dataset is not None, "Val dataset not set up"
         return torch.utils.data.DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
@@ -131,6 +133,7 @@ class EventDataModule(pl.LightningDataModule):
         )
 
     def test_dataloader(self):
+        assert self.test_dataset is not None, "Test dataset not set up"
         return torch.utils.data.DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
@@ -139,6 +142,7 @@ class EventDataModule(pl.LightningDataModule):
         )
 
     def ref_dataloader(self):
+        assert self.ref_dataset is not None, "Ref dataset not set up"
         return torch.utils.data.DataLoader(
             self.ref_dataset,
             batch_size=self.batch_size,

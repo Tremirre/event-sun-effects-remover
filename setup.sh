@@ -14,7 +14,7 @@ unzip ${DIR_DATA}/processed.zip -d ./data
 unzip ${DIR_DATA}/ref.zip -d ./data
 
 echo "=== STEP 3: Add cwd to PYTHONPATH ==="
-export PYTHONPATH="${PYTHONPATH}:${PWD}"
+export PYTHONPATH=${PWD}
 
 echo "=== STEP 4: Copy .env file ==="
 cp ${DIR_DATA}/.env .

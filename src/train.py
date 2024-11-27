@@ -30,6 +30,7 @@ class Config:
     batch_size: int
     unet_blocks: int
     unet_depth: int
+    unet_kernel: int
     max_epochs: int
     frac_used: float
     num_workers: int = 0
@@ -50,6 +51,9 @@ class Config:
             type=int,
             default=1,
             help="Depth of U-Net blocks (number of 1-conv layers per block)",
+        )
+        parser.add_argument(
+            "--unet-kernel", type=int, default=3, help="Kernel size of U-Net blocks"
         )
         parser.add_argument(
             "--max-epochs", type=int, default=10, help="Number of epochs"

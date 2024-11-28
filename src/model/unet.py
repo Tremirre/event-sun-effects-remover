@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .ffconv import FastFourierConvolution as FourierConvolution
+from .ffconv import FourierConvolution
 
 CHANNELS_IN = 5  # RGB + Event + Mask
 CHANNELS_OUT = 3  # RGB

@@ -110,7 +110,7 @@ def export_frames(
             pred, prev = model(voxel_grid, prev)
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
 
-        if i % skip_every != 0:
+        if skip_every > 0 and i % skip_every != 0:
             continue
 
         pred = cv2.undistort(pred, const.EVENT_MTX, const.EVENT_DIST)

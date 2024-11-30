@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 
 from . import mask
@@ -32,7 +33,7 @@ class RandomizedMasker:
         self.max_width = max_width
         self.generator = mask.DilatingMaskGenerator(5)
 
-    def __call__(self, bgr: np.ndarray, event_mask: np.ndarray) -> np.ndarray:
+    def __call__(self, bgr: np.ndarray, event_mask: np.ndarray, _) -> np.ndarray:
         height, width = bgr.shape[:2]
         mask = self.generator(height, width)
         mask[event_mask == 0] = 0
@@ -40,5 +41,25 @@ class RandomizedMasker:
 
 
 class FullMasker:
-    def __call__(self, bgr: np.ndarray, event_mask: np.ndarray) -> np.ndarray:
+    def __call__(self, bgr: np.ndarray, event_mask: np.ndarray, _) -> np.ndarray:
         return event_mask
+
+
+class DiffIntensityMasker:
+    def __init__(self, threshold: float):
+        self.threshold = threshold
+
+    def __call__(
+        self, bgr: np.ndarray, event_mask: np.ndarray, event: np.ndarray
+    ) -> np.ndarray:
+        hsl = cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS)
+        brightness = hsl[:, :, 1]
+        diff = cv2.absdiff(brightness, event)
+        diff[event_mask == 0] = 0
+        diff_mask = (diff > self.threshold).astype(np.uint8) * 255
+        kernel = np.ones((5, 5), np.uint8)
+        diff_mask = cv2.morphologyEx(diff_mask, cv2.MORPH_CLOSE, kernel)
+        diff_mask = cv2.erode(diff_mask, kernel, iterations=2)
+        diff_mask = cv2.dilate(diff_mask, kernel, iterations=25)
+        diff_mask[event_mask == 0] = 0
+        return diff_mask

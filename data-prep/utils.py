@@ -5,12 +5,13 @@ import json
 import pathlib
 import typing
 
-import const
 import cv2
 import numpy as np
 import rpg_e2vid.utils.inference_utils as iu
 import torch
 import tqdm
+
+import const
 
 
 @dataclasses.dataclass
@@ -59,8 +60,8 @@ class EventWindowIterator:
     ) -> None:
         self.events = events
         self.counts = counts
-        self.event_index = 0
-        self.count_index = 0
+        self.event_index = counts[:offset].sum()
+        self.count_index = offset
         self.window_length = window_length
         self.stride = stride
         self.offset = offset
@@ -227,4 +228,5 @@ def reconstruct_video(
                 pred = cv2.addWeighted(pred, 1.5, pred_gb, -0.5, 0)
 
         rec.append(pred)
+    return np.array(rec)
     return np.array(rec)

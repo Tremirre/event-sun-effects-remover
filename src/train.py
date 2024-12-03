@@ -36,6 +36,7 @@ class Config:
     unet_fft: bool
     max_epochs: int
     frac_used: float
+    ref_threshold: int
     num_workers: int = 0
     profile: bool = False
     log_tensorboard: bool = False
@@ -83,6 +84,12 @@ class Config:
             help="Tags for the run, comma-separated",
         )
         parser.add_argument("--save", action="store_true", help="Save the model")
+        parser.add_argument(
+            "--ref-threshold",
+            type=int,
+            default=100,
+            help="Light intensity threshold for reference images",
+        )
         return cls(**vars(parser.parse_args()))
 
 
@@ -127,6 +134,7 @@ if __name__ == "__main__":
         batch_size=config.batch_size,
         frac_used=config.frac_used,
         num_workers=config.num_workers,
+        ref_threshold=config.ref_threshold,
     )
     run_logger = logger_from_config(config)
     profiler = profiler_from_config(config)

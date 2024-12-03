@@ -18,6 +18,7 @@ class EventDataModule(pl.LightningDataModule):
         self,
         data_dir: pathlib.Path,
         ref_dir: pathlib.Path | None = None,
+        ref_threshold: int = 100,
         num_workers: int = 0,
         val_prob: float = 0.1,
         test_prob: float = 0.1,
@@ -26,6 +27,7 @@ class EventDataModule(pl.LightningDataModule):
     ) -> None:
         super().__init__()
         self.num_workers = num_workers
+        self.ref_threshold = ref_threshold
         self.data_dir = data_dir
         self.val_prob = val_prob
         self.test_prob = test_prob
@@ -75,7 +77,7 @@ class EventDataModule(pl.LightningDataModule):
             )
             self.val_dataset = dataset.BGREMDataset(
                 val_files,
-                masker=transforms.RandomizedMasker(5, 20),
+                masker=transforms.RandomizedMasker(5, 20, fix_by_idx=True),
                 bgr_transform=T.Compose(
                     [
                         T.ToTensor(),
@@ -85,7 +87,7 @@ class EventDataModule(pl.LightningDataModule):
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREMDataset(
                 test_files,
-                masker=transforms.RandomizedMasker(5, 20),
+                masker=transforms.RandomizedMasker(5, 20, fix_by_idx=True),
                 bgr_transform=T.Compose(
                     [
                         T.ToTensor(),
@@ -95,7 +97,7 @@ class EventDataModule(pl.LightningDataModule):
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGREMDataset(
                 self.ref_paths,
-                masker=transforms.FullMasker(),
+                masker=transforms.DiffIntensityMasker(self.ref_threshold),
                 bgr_transform=T.Compose(
                     [
                         T.ToTensor(),
@@ -122,7 +124,7 @@ class EventDataModule(pl.LightningDataModule):
             persistent_workers=self.num_workers > 0,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self):  # -> DataLoader:
         assert self.val_dataset is not None, "Val dataset not set up"
         return torch.utils.data.DataLoader(
             self.val_dataset,

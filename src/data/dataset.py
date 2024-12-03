@@ -8,7 +8,7 @@ import torch.utils.data
 
 class Masker(typing.Protocol):
     def __call__(
-        self, bgr: np.ndarray, event_mask: np.ndarray, event: np.ndarray
+        self, idx: int, bgr: np.ndarray, event_mask: np.ndarray, event: np.ndarray
     ) -> np.ndarray: ...
 
 
@@ -38,7 +38,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         bgr = img[:, :, :3]
         event = img[:, :, 3:4]
         event_mask = img[:, :, 4]
-        mask = self.masker(bgr, event_mask, event)
+        mask = self.masker(idx, bgr, event_mask, event)
         target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)
         mask_expanded = np.repeat(mask, 3, axis=-1)

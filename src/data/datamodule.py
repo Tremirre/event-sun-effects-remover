@@ -60,7 +60,7 @@ class EventDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             self.train_dataset = dataset.BGREMDataset(
                 train_files,
-                masker=transforms.RandomizedMasker(5, 20),
+                masker=transforms.RandomizedMasker(),
                 bgr_transform=T.Compose(
                     [
                         T.ToPILImage(),
@@ -77,7 +77,7 @@ class EventDataModule(pl.LightningDataModule):
             )
             self.val_dataset = dataset.BGREMDataset(
                 val_files,
-                masker=transforms.RandomizedMasker(5, 20, fix_by_idx=True),
+                masker=transforms.RandomizedMasker(fix_by_idx=True),
                 bgr_transform=T.Compose(
                     [
                         T.ToTensor(),
@@ -87,7 +87,7 @@ class EventDataModule(pl.LightningDataModule):
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREMDataset(
                 test_files,
-                masker=transforms.RandomizedMasker(5, 20, fix_by_idx=True),
+                masker=transforms.RandomizedMasker(fix_by_idx=True),
                 bgr_transform=T.Compose(
                     [
                         T.ToTensor(),

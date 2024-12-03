@@ -14,7 +14,7 @@ from src.callbacks import image_loggers
 from src.data import datamodule
 from src.model import noop, unet
 
-RUN_IDX = np.random.randint(0, 100000000000)
+RUN_IDX = np.random.randint(0, 2**31)
 
 torch.set_float32_matmul_precision("medium")
 torch.manual_seed(0)

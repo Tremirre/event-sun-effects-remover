@@ -53,4 +53,3 @@ def log_image_batch(
         comparison = comparison[:, :, ::-1]
         comparison = PIL.Image.fromarray(comparison)
         logger.experiment[f"{tag}_comparison"].append(comparison)
-        logger.experiment[f"{tag}_comparison"].append(comparison)

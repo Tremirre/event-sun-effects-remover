@@ -9,7 +9,7 @@ import torch
 from pytorch_lightning import loggers, profilers
 from torch.profiler import tensorboard_trace_handler
 
-from src import const
+from src import const, utils
 from src.callbacks import image_loggers
 from src.data import datamodule
 from src.model import noop, unet
@@ -17,8 +17,7 @@ from src.model import noop, unet
 RUN_IDX = np.random.randint(0, 2**31)
 
 torch.set_float32_matmul_precision("medium")
-torch.manual_seed(0)
-np.random.seed(0)
+utils.set_global_seed(0)
 
 dotenv.load_dotenv()
 logging.basicConfig(
@@ -160,6 +159,7 @@ if __name__ == "__main__":
     model = model_from_config(config)
     trainer.fit(model, dm)
     if config.unet_blocks:
+        utils.set_global_seed(1)
         trainer.test(model, dm)
 
     if config.save:

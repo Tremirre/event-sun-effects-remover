@@ -1,6 +1,20 @@
+import logging
+import random
+
+import numpy
 import PIL.Image
 import pytorch_lightning.loggers as pl_loggers
 import torch
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+def set_global_seed(seed: int):
+    logger.info(f"Setting global seed: {seed}")
+    torch.manual_seed(seed)
+    numpy.random.seed(seed)
+    random.seed(seed)
 
 
 def log_image_batch(
@@ -38,4 +52,5 @@ def log_image_batch(
         comparison = (comparison * 255).astype("uint8")
         comparison = comparison[:, :, ::-1]
         comparison = PIL.Image.fromarray(comparison)
+        logger.experiment[f"{tag}_comparison"].append(comparison)
         logger.experiment[f"{tag}_comparison"].append(comparison)

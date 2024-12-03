@@ -125,11 +125,16 @@ if __name__ == "__main__":
     all_bgrem = []
     for batch in iter_batches:
         bgrem, target = batch
+        bgr_orig = bgrem[:, :3].detach().cpu().numpy()
+        bgr_orig = np.transpose(bgr_orig, (0, 2, 3, 1))
+        mask = bgrem[:, 4].unsqueeze(-1).detach().cpu().numpy()
         bgrem = bgrem.to(DEVICE)
         bgr = model(bgrem)
         bgr = bgr.detach().cpu().numpy()
-        # change B X C X H X W to B X H X W X C
+
         bgr = np.transpose(bgr, (0, 2, 3, 1))
+        bgr = np.where(mask, bgr, bgr_orig)
+        bgr = np.clip(bgr * 255, 0, 255).astype(np.uint8)
         all_bgrem.append(bgr)
 
     all_bgrem = np.concatenate(all_bgrem, axis=0)

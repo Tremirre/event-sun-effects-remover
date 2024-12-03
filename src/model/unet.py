@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..loss import TVLoss, VGGLoss
 from .ffconv import FourierConvolution
 
 CHANNELS_IN = 5  # RGB + Event + Mask
@@ -121,16 +122,23 @@ class UNet(pl.LightningModule):
         )
         self.final = nn.Conv2d(features[1], CHANNELS_OUT, 1)
 
+        self.tv_loss = TVLoss(2)
+        self.vgg_loss = VGGLoss()
+
     def loss(
         self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
     ) -> torch.Tensor:
         # mae + ssim
         mae = F.l1_loss(y_hat, y)
         ssim = 1 - msssim.ms_ssim(y_hat, y)
+        vgg_loss = self.vgg_loss(y_hat, y)
+        tv_loss = self.tv_loss(y_hat)
         if stage:
             self.log(f"{stage}_mae", mae)
             self.log(f"{stage}_ssim", ssim)
-        return mae + ssim
+            self.log(f"{stage}_vgg", vgg_loss)
+            self.log(f"{stage}_tv", tv_loss)
+        return mae + ssim + vgg_loss + tv_loss
 
     def forward(self, x):
         x_skips = []

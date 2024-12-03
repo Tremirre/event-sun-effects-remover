@@ -14,6 +14,8 @@ from src.callbacks import image_loggers
 from src.data import datamodule
 from src.model import noop, unet
 
+RUN_IDX = np.random.randint(0, 100000000000)
+
 torch.set_float32_matmul_precision("medium")
 torch.manual_seed(0)
 np.random.seed(0)
@@ -154,8 +156,8 @@ if __name__ == "__main__":
 
     if config.save:
         logger.info("Saving model")
-        torch.save(model.state_dict(), "model.pth")
+        torch.save(model.state_dict(), f"model_{RUN_IDX}.pth")
         if isinstance(run_logger, loggers.NeptuneLogger):
             logger.info("Uploading model to Neptune")
-            run_logger.experiment["model"].upload("model.pth")
+            run_logger.experiment["model"].upload(f"model_{RUN_IDX}.pth")
     run_logger.experiment.stop()

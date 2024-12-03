@@ -29,13 +29,15 @@ class ConvBlock(nn.Module):
         super().__init__()
         self.convs = nn.ModuleList(
             [nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding)]
-            + [
+        )
+        if with_fft:
+            self.convs.append(FourierConvolution(out_channels, out_channels))
+        self.convs.extend(
+            [
                 nn.Conv2d(out_channels, out_channels, kernel_size, padding=padding)
                 for _ in range(depth)
             ]
         )
-        if with_fft:
-            self.convs.append(FourierConvolution(out_channels, out_channels))
         self.batch_norm = batch_norm
         if batch_norm:
             self.bn = nn.BatchNorm2d(out_channels)
@@ -100,7 +102,7 @@ class UNet(pl.LightningModule):
                     features[i + 1],
                     block_depth,
                     kernel_size,
-                    with_fft=with_fft,
+                    with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks)
             ]
@@ -112,7 +114,7 @@ class UNet(pl.LightningModule):
                     features[i],
                     block_depth,
                     kernel_size,
-                    with_fft=with_fft,
+                    with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks - 1, 0, -1)
             ]

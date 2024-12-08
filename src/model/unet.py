@@ -6,11 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .. import const
 from ..loss import TVLoss, VGGLoss
 from .ffconv import FFTConvCell
-
-CHANNELS_IN = 5  # RGB + Event + Mask
-CHANNELS_OUT = 3  # RGB
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -93,7 +91,7 @@ class UNet(pl.LightningModule):
         with_fft: bool = False,
     ) -> None:
         super().__init__()
-        features = [CHANNELS_IN]
+        features = [const.CHANNELS_IN]
         for i in range(n_blocks):
             features.append(2 ** (i + 6))
         self.down_blocks = nn.ModuleList(
@@ -120,7 +118,7 @@ class UNet(pl.LightningModule):
                 for i in range(n_blocks - 1, 0, -1)
             ]
         )
-        self.final = nn.Conv2d(features[1], CHANNELS_OUT, 1)
+        self.final = nn.Conv2d(features[1], const.CHANNELS_OUT, 1)
 
         self.tv_loss = TVLoss(2)
         self.vgg_loss = VGGLoss()

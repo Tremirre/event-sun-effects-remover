@@ -41,17 +41,19 @@ class BGREMDataset(torch.utils.data.Dataset):
         mask = self.masker(idx, bgr, event_mask, event)
         target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)
-        mask_expanded = np.repeat(mask, 3, axis=-1)
-        bgr = np.where(mask_expanded, 0, bgr)
 
         if self.event_transform:
             event = self.event_transform(event)
+
+        mask_expanded = np.repeat(mask, 3, axis=-1)
+        event_expanded = np.repeat(event, 3, axis=-1)
+        bgr = np.where(mask_expanded, event_expanded, bgr)
 
         if self.bgr_transform:
             bgr = self.bgr_transform(bgr)
             target = self.bgr_transform(target)
             mask = self.bgr_transform(mask)
-            event = self.bgr_transform(event)
+            # event = self.bgr_transform(event)
 
-        bgrem = torch.concatenate([bgr, event, mask], dim=0)
+        bgrem = torch.concatenate([bgr, mask], dim=0)
         return bgrem, target

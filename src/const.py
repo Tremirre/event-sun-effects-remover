@@ -1,7 +1,6 @@
 import pathlib
 
-CHANNELS_IN = 4  # RGB + Event + Mask
-CHANNELS_OUT = 3  # RGB
+CHANNELS_OUT = 3
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
 

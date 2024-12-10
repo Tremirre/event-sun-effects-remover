@@ -24,6 +24,7 @@ class EventDataModule(pl.LightningDataModule):
         test_prob: float = 0.1,
         batch_size: int = 32,
         frac_used: float = 1,
+        sep_event_channel: bool = False,
     ) -> None:
         super().__init__()
         self.num_workers = num_workers
@@ -36,6 +37,7 @@ class EventDataModule(pl.LightningDataModule):
         self.ref_dir = ref_dir
         self.ref_paths = list(ref_dir.glob("**/*.npy")) if ref_dir else []
         self.img_paths = list(self.data_dir.glob("**/*.npy"))
+        self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
         self.img_paths = self.img_paths[: int(self.frac_used * n)]
@@ -74,6 +76,7 @@ class EventDataModule(pl.LightningDataModule):
                         transforms.RandomizedContrastScaler(0.5, 1.5),
                     ]
                 ),
+                separate_event_channel=self.sep_event_channel,
             )
             self.val_dataset = dataset.BGREMDataset(
                 val_files,
@@ -83,6 +86,7 @@ class EventDataModule(pl.LightningDataModule):
                         T.ToTensor(),
                     ]
                 ),
+                separate_event_channel=self.sep_event_channel,
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREMDataset(
@@ -93,6 +97,7 @@ class EventDataModule(pl.LightningDataModule):
                         T.ToTensor(),
                     ]
                 ),
+                separate_event_channel=self.sep_event_channel,
             )
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGREMDataset(
@@ -103,6 +108,7 @@ class EventDataModule(pl.LightningDataModule):
                         T.ToTensor(),
                     ]
                 ),
+                separate_event_channel=self.sep_event_channel,
             )
 
     def get_dataset_sizes(self) -> dict[str, int]:

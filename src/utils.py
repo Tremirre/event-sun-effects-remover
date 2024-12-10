@@ -26,11 +26,12 @@ def log_image_batch(
     tag: str,
 ):
     x_bgr = x[:, :3]
-    # x_event = x[:, 3:4]
-    # x_event = torch.cat([x_event, x_event, x_event], dim=1)
-    # x_mask = x[:, 4:5]
-    # x_mask = torch.cat([x_mask, x_mask, x_mask], dim=1)
-    # x_bgr = torch.where(x_mask > 0, x_event, x_bgr)
+    if x.shape[1] == 5:
+        x_event = x[:, 3:4]
+        x_event = torch.cat([x_event, x_event, x_event], dim=1)
+        x_mask = x[:, 4:5]
+        x_mask = torch.cat([x_mask, x_mask, x_mask], dim=1)
+        x_bgr = torch.where(x_mask > 0, x_event, x_bgr)
     if isinstance(logger, pl_loggers.TensorBoardLogger):
         logger.experiment.add_images(f"{tag}_input", x_bgr, global_step=global_step)
         logger.experiment.add_images(f"{tag}_output", y_hat, global_step=global_step)

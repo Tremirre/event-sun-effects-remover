@@ -87,11 +87,12 @@ class UNet(pl.LightningModule):
         self,
         n_blocks: int,
         block_depth: int,
+        in_channels: int,
         kernel_size: int = 3,
         with_fft: bool = False,
     ) -> None:
         super().__init__()
-        features = [const.CHANNELS_IN]
+        features = [in_channels]
         for i in range(n_blocks):
             features.append(2 ** (i + 6))
         self.down_blocks = nn.ModuleList(

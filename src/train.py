@@ -36,6 +36,7 @@ class Config:
     max_epochs: int
     frac_used: float
     ref_threshold: int
+    event_channel: bool = False
     num_workers: int = 0
     profile: bool = False
     log_tensorboard: bool = False
@@ -89,6 +90,11 @@ class Config:
             default=100,
             help="Light intensity threshold for reference images",
         )
+        parser.add_argument(
+            "--event-channel",
+            action="store_true",
+            help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
+        )
         return cls(**vars(parser.parse_args()))
 
 
@@ -118,7 +124,11 @@ def profiler_from_config(config: Config) -> profilers.Profiler | None:
 def model_from_config(config: Config) -> pl.LightningModule:
     if config.unet_blocks > 0:
         return unet.UNet(
-            config.unet_blocks, config.unet_depth, config.unet_kernel, config.unet_fft
+            n_blocks=config.unet_blocks,
+            block_depth=config.unet_depth,
+            kernel_size=config.unet_kernel,
+            with_fft=config.unet_fft,
+            in_channels=5 if config.event_channel else 4,
         )
     logger.info("Using NoOp model")
     return noop.NoOp()
@@ -134,6 +144,7 @@ if __name__ == "__main__":
         frac_used=config.frac_used,
         num_workers=config.num_workers,
         ref_threshold=config.ref_threshold,
+        sep_event_channel=config.event_channel,
     )
     run_logger = logger_from_config(config)
     profiler = profiler_from_config(config)

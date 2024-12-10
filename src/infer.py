@@ -31,6 +31,8 @@ class Config:
     data_dir: pathlib.Path
     diff_intensity: int
     output: pathlib.Path
+    full_pred: bool = False
+    event_channel: bool = False
 
     def __post_init__(self):
         assert self.weights.exists(), f"Weights file {self.weights} does not exist"
@@ -79,13 +81,27 @@ class Config:
         parser.add_argument(
             "--output", type=pathlib.Path, help="Output file path", required=True
         )
+        parser.add_argument(
+            "--event-channel",
+            action="store_true",
+            help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
+        )
+        parser.add_argument(
+            "--full-pred",
+            action="store_true",
+            help="Use full prediction mode (do not fill in only masked region, output entire prediction of the model)",
+        )
         return cls(**vars(parser.parse_args()))
 
 
 def model_from_config(config: Config) -> pl.LightningModule:
     if config.unet_blocks > 0:
         model = unet.UNet(
-            config.unet_blocks, config.unet_depth, config.unet_kernel, config.unet_fft
+            n_blocks=config.unet_blocks,
+            block_depth=config.unet_depth,
+            kernel_size=config.unet_kernel,
+            with_fft=config.unet_fft,
+            in_channels=5 if config.event_channel else 4,
         )
         model.load_state_dict(torch.load(config.weights, weights_only=True))
         logger.info("Using U-Net model")
@@ -106,11 +122,11 @@ if __name__ == "__main__":
     model = model_from_config(config).to(DEVICE)
     img_paths = list(config.data_dir.glob("**/*.npy"))
     logger.info(f"Found {len(img_paths)} images in {config.data_dir}")
-
     infer_dataset = dataset.BGREMDataset(
         img_paths,
         masker=transforms.DiffIntensityMasker(config.diff_intensity),
         bgr_transform=T.Compose([T.ToTensor()]),
+        separate_event_channel=config.event_channel,
     )
     infer_loader = torch.utils.data.DataLoader(
         infer_dataset,
@@ -127,13 +143,15 @@ if __name__ == "__main__":
         bgrem, target = batch
         bgr_orig = bgrem[:, :3].detach().cpu().numpy()
         bgr_orig = np.transpose(bgr_orig, (0, 2, 3, 1))
-        mask = bgrem[:, 4].unsqueeze(-1).detach().cpu().numpy()
+        last_channel = bgrem.shape[1] - 1
+        mask = bgrem[:, last_channel].unsqueeze(-1).detach().cpu().numpy()
         bgrem = bgrem.to(DEVICE)
         bgr = model(bgrem)
         bgr = bgr.detach().cpu().numpy()
 
         bgr = np.transpose(bgr, (0, 2, 3, 1))
-        bgr = np.where(mask, bgr, bgr_orig)
+        if not config.full_pred:
+            bgr = np.where(mask, bgr, bgr_orig)
         bgr = np.clip(bgr * 255, 0, 255).astype(np.uint8)
         all_bgrem.append(bgr)
 

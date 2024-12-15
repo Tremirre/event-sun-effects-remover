@@ -80,7 +80,7 @@ def export_frames(
     output_folder: pathlib.Path,
     skip_every: int,
     prefix: str,
-) -> tuple[np.ndarray, np.ndarray]:
+):
     count_index = 0
     event_index = 0
     prev = None

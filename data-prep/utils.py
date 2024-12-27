@@ -11,6 +11,7 @@ import rpg_e2vid.utils.inference_utils as iu
 import torch
 import tqdm
 import yaml
+from event_cnn_minimal.model.model import FlowNet
 from scipy.spatial.transform import Rotation as Rot
 
 import const
@@ -349,3 +350,32 @@ def reconstruct_video(
 
         rec.append(pred)
     return np.array(rec)
+
+
+def load_model_2(path: pathlib.Path) -> FlowNet:
+    params = {
+        "num_bins": 5,
+        "skip_type": "sum",
+        "recurrent_block_type": "convlstm",
+        "num_encoders": 3,
+        "base_num_channels": 32,
+        "num_residual_blocks": 2,
+        "use_upsample_conv": True,
+        "norm": "none",
+        "num_output_channels": 3,
+    }
+    model2 = FlowNet(unet_kwargs=params)
+    model2.load_state_dict(torch.load(path))
+    model2.eval()
+    model2.to(const.DEVICE)
+    return model2
+
+
+def get_rect_artifact_mask(rect_map: np.ndarray) -> np.ndarray:
+    mask = np.zeros_like(rect_map[:, :, 0], dtype=np.uint8)
+    for x, y in np.ndindex(rect_map[:, :, 0].shape):
+        rect_x, rect_y = rect_map[x, y]
+        rect_x, rect_y = int(rect_x), int(rect_y)
+        if 0 <= rect_x < mask.shape[1] and 0 <= rect_y < mask.shape[0]:
+            mask[rect_y, rect_x] = 255
+    return mask == 0

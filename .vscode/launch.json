@@ -11,12 +11,12 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--input_events",
-                "./experiments/parsed/street2.bin",
-                "--input_video",
-                "./experiments/videos/street2.mp4",
-                "--input_meta",
-                "./experiments/meta/match-street2.json"
+                "--input_dir",
+                ".\\data\\raw\\dsec\\interlaken_00_c\\",
+                "--output_folder",
+                ".\\data\\processed\\dsec\\",
+                "--skip_every",
+                "1"
             ]
         }
     ]

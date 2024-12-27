@@ -5,13 +5,13 @@ import dataclasses
 import logging
 import pathlib
 
+import cv2
 import h5py
 import hdf5plugin
 import numpy as np
 import torch
 import tqdm
 from rpg_e2vid.utils.inference_utils import events_to_voxel_grid
-from rpg_e2vid.utils.loading_utils import load_model
 
 import const
 import utils
@@ -93,7 +93,7 @@ def read_events_h5(path: pathlib.Path) -> tuple[np.ndarray, np.ndarray]:
         offset = f["t_offset"][()]
         x = f["events"]["x"][()].astype(np.int32)
         y = f["events"]["y"][()].astype(np.int32)
-        ts = f["events"]["t"][()].astype(np.int64) + offset
+        ts = (f["events"]["t"][()].astype(np.int64) + offset) // 1_000
         pol = f["events"]["p"][()].astype(np.int32)
         events = np.array([ts, x, y, pol]).T
         ms_to_idx = f["ms_to_idx"][()].astype(np.int32)
@@ -114,10 +114,19 @@ def export_frames(
 ):
     freq = (src_frames.timestamps[1:] - src_frames.timestamps[:-1]).mean() / 1_000
     freq = int(round(freq))
+    ev_freq = freq // 2
     logging.info(f"Overlaying frames with a frequency of {freq} ms")
-    prev = None
-    for i in tqdm.tqdm(range(1, len(ms_to_idx), freq), desc="Overlaying frames"):
-        window = events[ms_to_idx[i - freq] : ms_to_idx[i]]
+
+    artifact_mask = utils.get_rect_artifact_mask(rect_map)
+    degrid_kernel = np.ones((3, 3), np.float32)
+    degrid_kernel[1, 1] = 0
+    degrid_kernel /= degrid_kernel.sum()
+
+    pbar = tqdm.tqdm(range(1, len(ms_to_idx), ev_freq), desc="Overlaying frames")
+    for i in pbar:
+        from_idx = ms_to_idx[i - ev_freq]
+        to_idx = ms_to_idx[i]
+        window = events[from_idx:to_idx]
         window[:, [1, 2]] = rect_map[window[:, 2], window[:, 1]]
         window = window[
             (window[:, 1] >= 0)
@@ -125,19 +134,23 @@ def export_frames(
             & (window[:, 2] >= 0)
             & (window[:, 2] < rect_map.shape[0])
         ]
+
         window = window.astype(np.float32)
         if not len(window):
             continue
 
         voxel_grid = events_to_voxel_grid(window, 5, t_width, t_height)
+        for j in range(len(voxel_grid)):
+            conved = cv2.filter2D(voxel_grid[j], -1, degrid_kernel)
+            voxel_grid[j] = np.where(artifact_mask, conved, voxel_grid[j])
         voxel_grid = torch.from_numpy(voxel_grid).to(const.DEVICE).unsqueeze(0).float()
 
         with torch.no_grad():
-            pred, prev = model(voxel_grid, prev)
+            pred = model(voxel_grid)["image"]
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
 
         frame_idx = i // freq
-        if frame_idx > 0 and frame_idx % skip_every != 0:
+        if (frame_idx > 0 and frame_idx % skip_every != 0) or (i - 1) % freq != 0:
             continue
 
         frame = src_frames.array[i // freq]
@@ -164,9 +177,10 @@ if __name__ == "__main__":
     )
 
     logging.info("Loading model")
-    model = load_model(const.PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(
+    model = utils.load_model_2(const.PRETRAINED_DIR / "better_e2vid_weights_v5.pth").to(
         const.DEVICE
     )
+    model.reset_states()
     model.eval()
 
     export_frames(

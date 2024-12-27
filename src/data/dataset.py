@@ -36,6 +36,9 @@ class BGREMDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         img = np.load(self.img_paths[idx])
+        if img.shape[2] == 4:
+            img = np.concatenate([img, np.ones_like(img[:, :, :1]) * 255], axis=-1)
+
         assert img.shape[2] == 5, "Expected 5 channels"
         bgr = img[:, :, :3]
         event = img[:, :, 3:4]

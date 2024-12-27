@@ -12,7 +12,7 @@ from torch.profiler import tensorboard_trace_handler
 from src import const, utils
 from src.callbacks import image_loggers
 from src.data import datamodule
-from src.model import noop, unet
+from src.model import modules
 
 RUN_IDX = np.random.randint(0, 2**31)
 
@@ -36,6 +36,7 @@ class Config:
     max_epochs: int
     frac_used: float
     ref_threshold: int
+    module_type: str = "unet"
     event_channel: bool = False
     num_workers: int = 0
     profile: bool = False
@@ -63,6 +64,11 @@ class Config:
             "--unet-fft",
             action="store_true",
             help="Use Fourier Convolution in U-Net blocks",
+        )
+        parser.add_argument(
+            "--module-type",
+            type=str,
+            default="unet",
         )
         parser.add_argument(
             "--max-epochs", type=int, default=10, help="Number of epochs"
@@ -122,16 +128,14 @@ def profiler_from_config(config: Config) -> profilers.Profiler | None:
 
 
 def model_from_config(config: Config) -> pl.LightningModule:
-    if config.unet_blocks > 0:
-        return unet.UNet(
-            n_blocks=config.unet_blocks,
-            block_depth=config.unet_depth,
-            kernel_size=config.unet_kernel,
-            with_fft=config.unet_fft,
-            in_channels=5 if config.event_channel else 4,
-        )
-    logger.info("Using NoOp model")
-    return noop.NoOp()
+    model = modules.NAMES[config.module_type](
+        n_blocks=config.unet_blocks,
+        block_depth=config.unet_depth,
+        kernel_size=config.unet_kernel,
+        with_fft=config.unet_fft,
+        in_channels=5 if config.event_channel else 4,
+    )
+    return model
 
 
 if __name__ == "__main__":

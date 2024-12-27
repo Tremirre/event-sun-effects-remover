@@ -1,13 +1,10 @@
 import logging
 
-import pytorch_lightning as pl
-import pytorch_msssim as msssim
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from .. import const
-from ..loss import TVLoss, VGGLoss
 from .ffconv import FFTConvCell
 
 logger = logging.getLogger(__name__)
@@ -82,7 +79,7 @@ class UpConvBlock(nn.Module):
         return x
 
 
-class UNet(pl.LightningModule):
+class UNet(nn.Module):
     def __init__(
         self,
         n_blocks: int,
@@ -121,25 +118,7 @@ class UNet(pl.LightningModule):
         )
         self.final = nn.Conv2d(features[1], const.CHANNELS_OUT, 1)
 
-        self.tv_loss = TVLoss(2)
-        self.vgg_loss = VGGLoss()
-
-    def loss(
-        self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
-    ) -> torch.Tensor:
-        # mae + ssim
-        mae = F.l1_loss(y_hat, y)
-        ssim = 1 - msssim.ms_ssim(y_hat, y)
-        vgg_loss = self.vgg_loss(y_hat, y)
-        tv_loss = self.tv_loss(y_hat)
-        if stage:
-            self.log(f"{stage}_mae", mae)
-            self.log(f"{stage}_ssim", ssim)
-            self.log(f"{stage}_vgg", vgg_loss)
-            self.log(f"{stage}_tv", tv_loss)
-        return mae + ssim + vgg_loss + tv_loss
-
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_skips = []
         for block in self.down_blocks:
             x = block(x)
@@ -151,38 +130,4 @@ class UNet(pl.LightningModule):
             x = block(x, x_skip)
 
         x = self.final(x)
-        x = torch.sigmoid(x)
         return x
-
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        x, y = batch
-        y_hat = self(x)
-        loss = self.loss(y_hat, y, stage="train")
-        self.log("train_loss", loss)
-        return {
-            "loss": loss,
-            "pred": y_hat,
-        }
-
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        x, y = batch
-        y_hat = self(x)
-        loss = self.loss(y_hat, y, stage="val")
-        self.log("val_loss", loss)
-        return {
-            "loss": loss,
-            "pred": y_hat,
-        }
-
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        x, y = batch
-        y_hat = self(x)
-        loss = self.loss(y_hat, y, stage="test")
-        self.log("test_loss", loss)
-        return {
-            "loss": loss,
-            "pred": y_hat,
-        }
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)  # type: ignore

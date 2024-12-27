@@ -1,4 +1,3 @@
-import argparse
 import dataclasses
 import logging
 
@@ -6,13 +5,12 @@ import dotenv
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning import loggers, profilers
-from torch.profiler import tensorboard_trace_handler
+from pytorch_lightning import loggers
 
 from src import const, utils
 from src.callbacks import image_loggers
+from src.config import Config
 from src.data import datamodule
-from src.model import modules
 
 RUN_IDX = np.random.randint(0, 2**31)
 
@@ -26,118 +24,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass
-class Config:
-    batch_size: int
-    unet_blocks: int
-    unet_depth: int
-    unet_kernel: int
-    unet_fft: bool
-    max_epochs: int
-    frac_used: float
-    ref_threshold: int
-    module_type: str = "unet"
-    event_channel: bool = False
-    num_workers: int = 0
-    profile: bool = False
-    log_tensorboard: bool = False
-    run_tags: str = "default"
-    save: bool = False
-
-    @classmethod
-    def from_args(cls):
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
-        parser.add_argument(
-            "--unet-blocks", type=int, default=2, help="Number of U-Net blocks"
-        )
-        parser.add_argument(
-            "--unet-depth",
-            type=int,
-            default=1,
-            help="Depth of U-Net blocks (number of 1-conv layers per block)",
-        )
-        parser.add_argument(
-            "--unet-kernel", type=int, default=3, help="Kernel size of U-Net blocks"
-        )
-        parser.add_argument(
-            "--unet-fft",
-            action="store_true",
-            help="Use Fourier Convolution in U-Net blocks",
-        )
-        parser.add_argument(
-            "--module-type",
-            type=str,
-            default="unet",
-        )
-        parser.add_argument(
-            "--max-epochs", type=int, default=10, help="Number of epochs"
-        )
-        parser.add_argument(
-            "--frac-used", type=float, default=1, help="Fraction of data used"
-        )
-        parser.add_argument(
-            "--num-workers", type=int, default=0, help="Number of workers"
-        )
-        parser.add_argument("--profile", action="store_true", help="Enable profiling")
-        parser.add_argument(
-            "--log-tensorboard", action="store_true", help="Log to TensorBoard"
-        )
-        parser.add_argument(
-            "--run-tags",
-            type=str,
-            default="default",
-            help="Tags for the run, comma-separated",
-        )
-        parser.add_argument("--save", action="store_true", help="Save the model")
-        parser.add_argument(
-            "--ref-threshold",
-            type=int,
-            default=100,
-            help="Light intensity threshold for reference images",
-        )
-        parser.add_argument(
-            "--event-channel",
-            action="store_true",
-            help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
-        )
-        return cls(**vars(parser.parse_args()))
-
-
-def logger_from_config(config: Config) -> loggers.Logger:
-    if config.log_tensorboard:
-        return loggers.TensorBoardLogger(
-            "lightning_logs",
-            name="unet",
-        )
-    return loggers.NeptuneLogger(
-        log_model_checkpoints=False, tags=config.run_tags.split(",")
-    )
-
-
-def profiler_from_config(config: Config) -> profilers.Profiler | None:
-    if config.profile:
-        return profilers.PyTorchProfiler(
-            on_trace_ready=tensorboard_trace_handler("lightning_logs/profiler0"),
-            profile_memory=True,
-            record_shapes=True,
-            record_functions=True,
-            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
-        )
-    return None
-
-
-def model_from_config(config: Config) -> pl.LightningModule:
-    model = modules.NAMES[config.module_type](
-        n_blocks=config.unet_blocks,
-        block_depth=config.unet_depth,
-        kernel_size=config.unet_kernel,
-        with_fft=config.unet_fft,
-        in_channels=5 if config.event_channel else 4,
-    )
-    return model
-
-
 if __name__ == "__main__":
     config = Config.from_args()
 
@@ -147,11 +33,11 @@ if __name__ == "__main__":
         batch_size=config.batch_size,
         frac_used=config.frac_used,
         num_workers=config.num_workers,
-        ref_threshold=config.ref_threshold,
+        ref_threshold=config.diff_intensity,
         sep_event_channel=config.event_channel,
     )
-    run_logger = logger_from_config(config)
-    profiler = profiler_from_config(config)
+    run_logger = config.get_logger()
+    profiler = config.get_profiler()
     callbacks = [image_loggers.ValBatchImageLogger()]
     if dm.ref_paths:
         dm.setup("ref")
@@ -171,7 +57,7 @@ if __name__ == "__main__":
     trainer.logger.log_hyperparams(config_dict)
     trainer.logger.log_hyperparams(dataset_sizes)
 
-    model = model_from_config(config)
+    model = config.get_model()
     trainer.fit(model, dm)
     if config.unet_blocks:
         utils.set_global_seed(1)

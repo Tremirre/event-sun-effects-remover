@@ -63,21 +63,7 @@ class NoOp(BaseInpaintingModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x[:, :3]
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        x, y = batch
-        return {
-            "loss": torch.tensor(0.0),
-            "pred": self(x),
-        }
-
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        x, y = batch
-        return {
-            "loss": torch.tensor(0.0),
-            "pred": self(x),
-        }
-
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
         x, y = batch
         return {
             "loss": torch.tensor(0.0),

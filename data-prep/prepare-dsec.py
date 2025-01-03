@@ -27,6 +27,7 @@ class Args:
     input_dir: pathlib.Path
     skip_every: int
     output_folder: pathlib.Path
+    save_debug: bool
 
     @classmethod
     def from_cli(cls) -> Args:
@@ -49,6 +50,12 @@ class Args:
             required=True,
             type=pathlib.Path,
             help="Path to the output folder",
+        )
+        parser.add_argument(
+            "--save-debug",
+            required=False,
+            action="store_true",
+            help="Save debug recording of the reconstruction",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -111,6 +118,7 @@ def export_frames(
     prefix: str,
     t_height: int,
     t_width: int,
+    save_debug: bool = False,
 ):
     freq = (src_frames.timestamps[1:] - src_frames.timestamps[:-1]).mean() / 1_000
     freq = int(round(freq))
@@ -121,6 +129,16 @@ def export_frames(
     degrid_kernel = np.ones((3, 3), np.float32)
     degrid_kernel[1, 1] = 0
     degrid_kernel /= degrid_kernel.sum()
+    out = None
+    if save_debug:
+        debug_path = output_folder / f"{prefix}_debug.mp4"
+        logging.info(f"Saving debug recording to {debug_path}")
+        out = cv2.VideoWriter(
+            str(debug_path),
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            40,
+            (t_width * 2, t_height),
+        )
 
     pbar = tqdm.tqdm(range(1, len(ms_to_idx), ev_freq), desc="Overlaying frames")
     for i in pbar:
@@ -150,14 +168,22 @@ def export_frames(
             pred = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
 
         frame_idx = i // freq
+
+        frame = src_frames.array[frame_idx]
+        if out:
+            pred_bgr = cv2.cvtColor(pred, cv2.COLOR_GRAY2BGR)
+            frame_out = np.concatenate([frame, pred_bgr], axis=1)
+            out.write(frame_out)
+
         if (frame_idx > 0 and frame_idx % skip_every != 0) or (i - 1) % freq != 0:
             continue
 
-        frame = src_frames.array[i // freq]
         full_pred = np.expand_dims(pred, axis=-1)
         frame = np.concatenate([frame, full_pred], axis=-1)
         output_path = output_folder / f"{prefix}_{frame_idx:>05}.npy"
         np.save(output_path, frame)
+    if out:
+        out.release()
 
 
 if __name__ == "__main__":
@@ -194,4 +220,5 @@ if __name__ == "__main__":
         args.input_dir.name,
         height,
         width,
+        save_debug=args.save_debug,
     )

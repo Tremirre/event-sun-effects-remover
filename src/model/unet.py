@@ -99,7 +99,7 @@ class UNet(nn.Module):
                     features[i + 1],
                     block_depth,
                     kernel_size,
-                    with_fft=with_fft,  # if i > 0 else False,
+                    with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks)
             ]
@@ -111,7 +111,7 @@ class UNet(nn.Module):
                     features[i],
                     block_depth,
                     kernel_size,
-                    with_fft=with_fft,  # if i > 0 else False,
+                    with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks - 1, 0, -1)
             ]

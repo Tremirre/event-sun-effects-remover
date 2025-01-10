@@ -74,6 +74,7 @@ class EventDataModule(pl.LightningDataModule):
                     [
                         transforms.RandomizedBrightnessScaler(0.5, 1.5),
                         transforms.RandomizedContrastScaler(0.5, 1.5),
+                        transforms.RadnomizedGaussianBlur(1, 10),
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,

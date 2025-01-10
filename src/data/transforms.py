@@ -27,6 +27,17 @@ class RandomizedContrastScaler:
         return np.clip(img_gs, 0, 255).astype(np.uint8)
 
 
+class RadnomizedGaussianBlur:
+    def __init__(self, min_sigma: float, max_sigma: float):
+        self.min_sigma = min_sigma
+        self.max_sigma = max_sigma
+
+    def __call__(self, img: np.ndarray) -> np.ndarray:
+        sigma = np.random.uniform(self.min_sigma, self.max_sigma)
+        res = cv2.GaussianBlur(img, (5, 5), sigma)
+        return res[:, :, np.newaxis]
+
+
 class RandomizedMasker:
     def __init__(self, fix_by_idx: bool = False):
         self.generator = mask.DilatingMaskGenerator(5)

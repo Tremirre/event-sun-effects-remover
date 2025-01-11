@@ -51,7 +51,10 @@ if __name__ == "__main__":
         model_chkp = ModelCheckpoint(
             monitor="val_loss",
             dirpath="checkpoints",
-            filename="model-{epoch:02d}-{val_loss:.2f}",
+            filename="model-{epoch}",
+            save_top_k=1,
+            mode="min",
+            save_weights_only=True,
         )
         callbacks.append(model_chkp)
 
@@ -72,7 +75,7 @@ if __name__ == "__main__":
 
     if config.module_type != "noop":
         if model_chkp is not None:
-            model = model.load_from_checkpoint(model_chkp.best_model_path)
+            model.load_state_dict(torch.load(model_chkp.best_model_path)["state_dict"])
         utils.set_global_seed(1)
         trainer.test(model, dm)
 

@@ -6,6 +6,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import loggers
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 from src import const, utils
 from src.callbacks import image_loggers
@@ -38,12 +39,21 @@ if __name__ == "__main__":
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()
-    callbacks = [image_loggers.ValBatchImageLogger()]
+    callbacks: list[pl.Callback] = [image_loggers.ValBatchImageLogger()]
     if dm.ref_paths:
         dm.setup("ref")
         logger.info("Enabling reference image logging")
         ref_img_logger = image_loggers.ReferenceImageLogger(dm.ref_dataloader())
         callbacks.append(ref_img_logger)
+
+    model_chkp = None
+    if config.save:
+        model_chkp = ModelCheckpoint(
+            monitor="val_loss",
+            dirpath="checkpoints",
+            filename="model-{epoch:02d}-{val_loss:.2f}",
+        )
+        callbacks.append(model_chkp)
 
     trainer = pl.Trainer(
         max_epochs=config.max_epochs,
@@ -54,19 +64,21 @@ if __name__ == "__main__":
     )
     dataset_sizes = dm.get_dataset_sizes()
     config_dict = dataclasses.asdict(config)
-    trainer.logger.log_hyperparams(config_dict)
-    trainer.logger.log_hyperparams(dataset_sizes)
+    trainer.logger.log_hyperparams(config_dict)  # type: ignore
+    trainer.logger.log_hyperparams(dataset_sizes)  # type: ignore
 
     model = config.get_model()
     trainer.fit(model, dm)
-    if config.unet_blocks:
+
+    if config.module_type != "noop":
+        if model_chkp is not None:
+            model = model.load_from_checkpoint(model_chkp.best_model_path)
         utils.set_global_seed(1)
         trainer.test(model, dm)
 
-    if config.save:
-        logger.info("Saving model")
-        torch.save(model.state_dict(), f"model_{RUN_IDX}.pth")
+    if model_chkp is not None:
+        best_model_path = model_chkp.best_model_path
         if isinstance(run_logger, loggers.NeptuneLogger):
             logger.info("Uploading model to Neptune")
-            run_logger.experiment["model"].upload(f"model_{RUN_IDX}.pth")
+            run_logger.experiment["model"].upload(best_model_path)
     run_logger.experiment.stop()

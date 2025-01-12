@@ -25,6 +25,7 @@ class EventDataModule(pl.LightningDataModule):
         batch_size: int = 32,
         frac_used: float = 1,
         sep_event_channel: bool = False,
+        img_glob: str = "**/*.npy",
     ) -> None:
         super().__init__()
         self.num_workers = num_workers
@@ -36,7 +37,7 @@ class EventDataModule(pl.LightningDataModule):
         self.frac_used = frac_used
         self.ref_dir = ref_dir
         self.ref_paths = list(ref_dir.glob("**/*.npy")) if ref_dir else []
-        self.img_paths = list(self.data_dir.glob("**/*.npy"))
+        self.img_paths = list(self.data_dir.glob(img_glob))
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)

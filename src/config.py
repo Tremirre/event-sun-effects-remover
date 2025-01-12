@@ -19,6 +19,7 @@ class Config:
     max_epochs: int
     frac_used: float
     diff_intensity: int
+    img_glob: str = "**/*.npy"
     module_type: str = "unet"
     event_channel: bool = False
     num_workers: int = 0
@@ -87,6 +88,12 @@ class Config:
             "--event-channel",
             action="store_true",
             help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
+        )
+        parser.add_argument(
+            "--img-glob",
+            type=str,
+            default="**/*.npy",
+            help="Glob pattern for image files",
         )
         return cls(**vars(parser.parse_args()))
 

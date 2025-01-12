@@ -36,6 +36,7 @@ if __name__ == "__main__":
         num_workers=config.num_workers,
         ref_threshold=config.diff_intensity,
         sep_event_channel=config.event_channel,
+        img_glob=config.img_glob,
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()
@@ -67,6 +68,7 @@ if __name__ == "__main__":
         callbacks=callbacks,
     )
     dataset_sizes = dm.get_dataset_sizes()
+    logger.info(f"Dataset sizes: {dataset_sizes}")
     config_dict = dataclasses.asdict(config)
     trainer.logger.log_hyperparams(config_dict)  # type: ignore
     trainer.logger.log_hyperparams(dataset_sizes)  # type: ignore

@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
+DATA_PATTERN = "**/*.npy"
+
 
 class EventDataModule(pl.LightningDataModule):
     def __init__(
@@ -25,7 +27,7 @@ class EventDataModule(pl.LightningDataModule):
         batch_size: int = 32,
         frac_used: float = 1,
         sep_event_channel: bool = False,
-        img_glob: str = "**/*.npy",
+        train_img_glob: str = DATA_PATTERN,
     ) -> None:
         super().__init__()
         self.num_workers = num_workers
@@ -36,8 +38,8 @@ class EventDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.frac_used = frac_used
         self.ref_dir = ref_dir
-        self.ref_paths = list(ref_dir.glob("**/*.npy")) if ref_dir else []
-        self.img_paths = list(self.data_dir.glob(img_glob))
+        self.ref_paths = list(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
+        self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
@@ -45,6 +47,7 @@ class EventDataModule(pl.LightningDataModule):
         n = len(self.img_paths)
         self.val_n = int(n * self.val_prob)
         self.test_n = int(n * self.test_prob)
+        self.train_img_glob = train_img_glob
 
         self.train_dataset = None
         self.val_dataset = None
@@ -58,6 +61,7 @@ class EventDataModule(pl.LightningDataModule):
         val_files = self.img_paths[: self.val_n]
         test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
         train_files = self.img_paths[self.val_n + self.test_n :]
+        train_files = [p for p in train_files if p.match(self.train_img_glob)]
 
         logger.info(f"Setting up datasets for stage: {stage}")
         if stage == "fit" or stage is None:
@@ -114,9 +118,10 @@ class EventDataModule(pl.LightningDataModule):
             )
 
     def get_dataset_sizes(self) -> dict[str, int]:
-        train_n = len(self.img_paths) - self.val_n - self.test_n
+        train_files = self.img_paths[self.val_n + self.test_n :]
+        train_files = [p for p in train_files if p.match(self.train_img_glob)]
         return {
-            "train_size": train_n,
+            "train_size": len(train_files),
             "val_size": self.val_n,
             "test_size": self.test_n,
             "ref_size": len(self.ref_paths),

@@ -36,7 +36,7 @@ if __name__ == "__main__":
         num_workers=config.num_workers,
         ref_threshold=config.diff_intensity,
         sep_event_channel=config.event_channel,
-        img_glob=config.img_glob,
+        train_img_glob=config.img_glob,
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()

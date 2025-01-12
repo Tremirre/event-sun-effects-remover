@@ -93,7 +93,7 @@ class Config:
             "--img-glob",
             type=str,
             default="**/*.npy",
-            help="Glob pattern for image files",
+            help="Glob pattern for train image files",
         )
         return cls(**vars(parser.parse_args()))
 

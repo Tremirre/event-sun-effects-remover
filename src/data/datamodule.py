@@ -62,6 +62,7 @@ class EventDataModule(pl.LightningDataModule):
         test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
         train_files = self.img_paths[self.val_n + self.test_n :]
         train_files = [p for p in train_files if p.match(self.train_img_glob)]
+        assert len(train_files) > 0, "No training files found"
 
         logger.info(f"Setting up datasets for stage: {stage}")
         if stage == "fit" or stage is None:

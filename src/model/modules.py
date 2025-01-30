@@ -80,15 +80,10 @@ class NoOp(BaseInpaintingModule):
 class UNetModule(BaseInpaintingModule):
     def __init__(
         self,
-        n_blocks: int,
-        block_depth: int,
-        in_channels: int,
-        kernel_size: int = 3,
-        with_fft: bool = False,
         **kwargs,
     ) -> None:
         super().__init__()
-        self.unet = UNet(n_blocks, block_depth, in_channels, kernel_size, with_fft)
+        self.unet = UNet(**kwargs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.unet(x)

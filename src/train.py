@@ -53,7 +53,9 @@ if __name__ == "__main__":
         model_chkp = ModelCheckpoint(
             monitor="val_loss",
             dirpath="checkpoints",
-            filename="model-{epoch}",
+            filename="{run_idx:0>10}-model-{epoch}".format(
+                run_idx=RUN_IDX, epoch="{epoch}"
+            ),
             save_top_k=1,
             mode="min",
             save_weights_only=True,
@@ -72,6 +74,7 @@ if __name__ == "__main__":
     config_dict = dataclasses.asdict(config)
     trainer.logger.log_hyperparams(config_dict)  # type: ignore
     trainer.logger.log_hyperparams(dataset_sizes)  # type: ignore
+    trainer.logger.log_hyperparams({"run_idx": RUN_IDX})  # type: ignore
 
     model = config.get_model()
     trainer.fit(model, dm)

@@ -56,7 +56,6 @@ class UpConvBlock(nn.Module):
         with_fft: bool = False,
     ) -> None:
         super().__init__()
-        # Added output_padding=1 to ensure output size matches skip connection
         self.upconv = nn.ConvTranspose2d(
             in_channels,
             out_channels,

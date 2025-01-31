@@ -37,13 +37,17 @@ class ConvBlock(nn.Module):
         self.batch_norm = batch_norm
         if batch_norm:
             self.bn = nn.BatchNorm2d(out_channels)
+        self.shortcut = nn.Identity()
+        if in_channels != out_channels:
+            self.shortcut = nn.Conv2d(in_channels, out_channels, 1)
 
     def forward(self, x):
+        x_orig = self.shortcut(x)
         for conv in self.convs:
             x = F.relu(conv(x))
         if self.batch_norm:
             x = self.bn(x)
-        return x
+        return F.relu(x + x_orig)
 
 
 class UpConvBlock(nn.Module):

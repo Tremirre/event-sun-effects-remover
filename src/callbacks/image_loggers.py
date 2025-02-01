@@ -25,6 +25,16 @@ class ReferenceImageLogger(pl.Callback):
                 x = x.to(pl_module.device)
                 y = y.to(pl_module.device)
                 y_hat = pl_module(x)
+                if isinstance(y_hat, tuple):
+                    mid_hat, y_hat = y_hat
+                    log_image_batch(
+                        x,
+                        mid_hat,
+                        y,
+                        trainer.logger,
+                        trainer.global_step,
+                        f"ref_{i}_mid",
+                    )
                 log_image_batch(
                     x, y_hat, y, trainer.logger, trainer.global_step, f"ref_{i}"
                 )
@@ -47,5 +57,11 @@ class ValBatchImageLogger(pl.Callback):
         x, y = batch
         x = x[:8]
         y = y[:8]
+        if "pred_mid" in outputs:
+            y_hat_mid = outputs["pred_mid"][:8]
+            log_image_batch(
+                x, y_hat_mid, y, trainer.logger, trainer.global_step, "val_0_mid"
+            )
+            x = y_hat_mid
         y_hat = outputs["pred"][:8]
         log_image_batch(x, y_hat, y, trainer.logger, trainer.global_step, "val_0")

@@ -119,8 +119,37 @@ class UNetDualWithFFT(BaseInpaintingModule):
         return x
 
 
+class UNetTwoStage(BaseInpaintingModule):
+    def __init__(self, **kwargs) -> None:
+        super().__init__()
+        self.pre_unet = UNet(**kwargs)
+        kwargs["in_channels"] = const.CHANNELS_OUT
+        self.post_unet = UNet(**kwargs)
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        mid = self.pre_unet(x)
+        mid = torch.sigmoid(mid)
+        final = self.post_unet(mid)
+        final = torch.sigmoid(final)
+        return mid, final
+
+    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+        x, y = batch
+        mid, final = self(x)
+        mid_loss = F.mse_loss(mid, y)
+        self.log(f"{stage}_mid_loss", mid_loss)
+        loss = self.loss(final, y, stage=stage)
+        self.log(f"{stage}_loss", loss)
+        return {
+            "pred_mid": mid,
+            "loss": loss,
+            "pred": final,
+        }
+
+
 NAMES = {
     "unet": UNetModule,
     "unet_dual": UNetDualWithFFT,
+    "unet_two_stage": UNetTwoStage,
     "noop": NoOp,
 }

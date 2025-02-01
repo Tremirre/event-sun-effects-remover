@@ -137,6 +137,10 @@ class UNetTwoStage(BaseInpaintingModule):
         x, y = batch
         mid, final = self(x)
         mid_loss = F.mse_loss(mid, y)
+        if stage == "train":
+            self.pre_unet.zero_grad()
+            mid_loss.backward(retain_graph=True)
+
         self.log(f"{stage}_mid_loss", mid_loss)
         loss = self.loss(final, y, stage=stage)
         self.log(f"{stage}_loss", loss)

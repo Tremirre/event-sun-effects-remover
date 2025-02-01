@@ -125,6 +125,7 @@ class UNetTwoStage(BaseInpaintingModule):
         self.pre_unet = UNet(**kwargs)
         kwargs["in_channels"] = const.CHANNELS_OUT
         self.post_unet = UNet(**kwargs)
+        self.automatic_optimization = False
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         mid = self.pre_unet(x)
@@ -137,13 +138,17 @@ class UNetTwoStage(BaseInpaintingModule):
         x, y = batch
         mid, final = self(x)
         mid_loss = F.mse_loss(mid, y)
-        if stage == "train":
-            self.pre_unet.zero_grad()
-            mid_loss.backward(retain_graph=True)
 
         self.log(f"{stage}_mid_loss", mid_loss)
         loss = self.loss(final, y, stage=stage)
         self.log(f"{stage}_loss", loss)
+        if stage == "train":
+            optimizer = self.optimizers()
+            optimizer.zero_grad()
+            self.manual_backward(mid_loss, retain_graph=True)
+            self.manual_backward(loss)
+            optimizer.step()
+
         return {
             "pred_mid": mid,
             "loss": loss,

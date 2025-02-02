@@ -25,6 +25,7 @@ class Config:
     num_workers: int = 0
     profile: bool = False
     log_tensorboard: bool = False
+    progressive_masking: bool = False
     run_tags: str = "default"
     save: bool = False
     full_pred: bool = False
@@ -88,6 +89,11 @@ class Config:
             "--event-channel",
             action="store_true",
             help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
+        )
+        parser.add_argument(
+            "--progressive-masking",
+            action="store_true",
+            help="Progressively increase mask complexity",
         )
         parser.add_argument(
             "--img-glob",

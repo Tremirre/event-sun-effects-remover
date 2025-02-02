@@ -27,6 +27,7 @@ class EventDataModule(pl.LightningDataModule):
         batch_size: int = 32,
         frac_used: float = 1,
         sep_event_channel: bool = False,
+        progressive_masking: bool = False,
         train_img_glob: str = DATA_PATTERN,
     ) -> None:
         super().__init__()
@@ -40,6 +41,7 @@ class EventDataModule(pl.LightningDataModule):
         self.ref_dir = ref_dir
         self.ref_paths = list(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
         self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
+        self.progressive_masking = progressive_masking
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
@@ -53,6 +55,49 @@ class EventDataModule(pl.LightningDataModule):
         self.val_dataset = None
         self.test_dataset = None
         self.ref_dataset = None
+        self.train_masker_config = [
+            {
+                "max_centers": 5,
+            }
+        ]
+        if self.progressive_masking:
+            self.train_masker_config = [
+                {
+                    "max_centers": 2,
+                    "min_points": 10,
+                    "max_points": 20,
+                    "min_dil": 5,
+                    "max_dil": 10,
+                },
+                {
+                    "max_centers": 2,
+                    "min_points": 15,
+                    "max_points": 25,
+                    "min_dil": 10,
+                    "max_dil": 15,
+                },
+                {
+                    "max_centers": 3,
+                    "min_points": 20,
+                    "max_points": 30,
+                    "min_dil": 10,
+                    "max_dil": 15,
+                },
+                {
+                    "max_centers": 4,
+                    "min_points": 20,
+                    "max_points": 40,
+                    "min_dil": 10,
+                    "max_dil": 15,
+                },
+                {
+                    "max_centers": 5,
+                    "min_points": 20,
+                    "max_points": 50,
+                    "min_dil": 20,
+                    "max_dil": 30,
+                },
+            ]
 
     def prepare_data(self) -> None:
         pass
@@ -68,7 +113,7 @@ class EventDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             self.train_dataset = dataset.BGREMDataset(
                 train_files,
-                masker=transforms.RandomizedMasker(),
+                masker=transforms.RandomizedMasker(self.train_masker_config),
                 bgr_transform=T.Compose(
                     [
                         T.ToPILImage(),

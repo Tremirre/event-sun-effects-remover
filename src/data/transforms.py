@@ -39,13 +39,27 @@ class RadnomizedGaussianBlur:
 
 
 class RandomizedMasker:
-    def __init__(self, fix_by_idx: bool = False):
-        self.generator = mask.DilatingMaskGenerator(5)
+    def __init__(
+        self,
+        gparams: list[dict] | None = None,
+        fix_by_idx: bool = False,
+    ):
+        if gparams is None:
+            gparams = [{"max_centers": 5}]
+        if len(gparams) > 1:
+            assert not fix_by_idx, "Cannot fix by idx with multiple mask generators"
+        self.generator = mask.DilatingMaskGenerator(**gparams.pop(0))
         self.fix_by_idx = fix_by_idx
+        self.gparams = gparams
         self.cache = {}
 
+    def progress(self) -> None:
+        if len(self.gparams) == 0:
+            return
+        self.generator = mask.DilatingMaskGenerator(**self.gparams.pop(0))
+
     def __call__(
-        self, idx: int, bgr: np.ndarray, event_mask: np.ndarray, _
+        self, idx: int, bgr: np.ndarray, event_mask: np.ndarray, event: np.ndarray
     ) -> np.ndarray:
         height, width = bgr.shape[:2]
         if self.fix_by_idx and idx in self.cache:
@@ -78,3 +92,6 @@ class DiffIntensityMasker:
         diff_mask = cv2.dilate(diff_mask, kernel, iterations=25)
         diff_mask[event_mask == 0] = 0
         return diff_mask
+
+    def progress(self) -> None:
+        pass

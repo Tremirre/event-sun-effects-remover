@@ -3,6 +3,7 @@ import pathlib
 CHANNELS_OUT = 3
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
+MASK_GROWTH_EVERY_N_EPOCHS = 10
 
 DATA_DIR = pathlib.Path("data")
 TRAIN_VAL_TEST_DIR = DATA_DIR / "processed"

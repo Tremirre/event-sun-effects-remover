@@ -1,3 +1,4 @@
+import logging
 import pathlib
 import typing
 
@@ -5,11 +6,17 @@ import numpy as np
 import torch
 import torch.utils.data
 
+from src import const
+
+logger = logging.getLogger(__name__)
+
 
 class Masker(typing.Protocol):
     def __call__(
         self, idx: int, bgr: np.ndarray, event_mask: np.ndarray, event: np.ndarray
     ) -> np.ndarray: ...
+
+    def progress(self) -> None: ...
 
 
 class Transform(typing.Protocol):
@@ -24,17 +31,30 @@ class BGREMDataset(torch.utils.data.Dataset):
         bgr_transform: None | Transform = None,
         event_transform: None | Transform = None,
         separate_event_channel: bool = True,
+        mask_progression: bool = False,
     ) -> None:
         self.img_paths = img_paths
         self.masker = masker
         self.bgr_transform = bgr_transform
         self.event_transform = event_transform
         self.separate_event_channel = separate_event_channel
+        self.mask_progression = mask_progression
+        self._retrieve_count = 0
 
     def __len__(self) -> int:
         return len(self.img_paths)
 
+    def on_retrieve(self) -> None:
+        if not self.mask_progression:
+            return
+        self._retrieve_count += 1
+        if self._retrieve_count % (const.MASK_GROWTH_EVERY_N_EPOCHS * len(self)) == 0:
+            logger.info("Progressing mask")
+            self.masker.progress()
+            self._retrieve_count = 0
+
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        self.on_retrieve()
         img = np.load(self.img_paths[idx])
         if img.shape[2] == 4:
             img = np.concatenate([img, np.ones_like(img[:, :, :1]) * 255], axis=-1)

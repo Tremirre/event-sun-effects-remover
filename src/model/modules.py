@@ -1,3 +1,5 @@
+import logging
+
 import pytorch_lightning as pl
 import pytorch_msssim as msssim
 import torch
@@ -7,6 +9,8 @@ from src import const
 
 from ..loss import TVLoss, VGGLoss
 from .unet import UNet
+
+logger = logging.getLogger(__name__)
 
 
 class BaseInpaintingModule(pl.LightningModule):
@@ -36,6 +40,9 @@ class BaseInpaintingModule(pl.LightningModule):
     def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
         x, y = batch
         y_hat = self(x)
+        mask = x[:, -1]
+        mask = torch.stack([mask] * 3, dim=1)
+        y_hat = torch.where(mask == 0, x[:, :3], y_hat)
         loss = self.loss(y_hat, y, stage=stage)
         self.log(f"{stage}_loss", loss)
         return {

@@ -134,3 +134,49 @@ class UNet(nn.Module):
 
         x = self.final(x)
         return x
+
+
+class HalfUNetDiscriminator(nn.Module):
+    def __init__(
+        self,
+        n_blocks: int,
+        block_depth: int,
+        in_channels: int,
+        kernel_size: int = 3,
+        with_fft: bool = False,
+    ) -> None:
+        super().__init__()
+        features = [in_channels]
+        for i in range(n_blocks):
+            features.append(2 ** (i + 6))
+        self.down_blocks = nn.ModuleList(
+            [
+                ConvBlock(
+                    features[i],
+                    features[i + 1],
+                    block_depth,
+                    kernel_size,
+                    with_fft=with_fft if i > 0 else False,
+                )
+                for i in range(n_blocks)
+            ]
+        )
+        div = 2 ** (n_blocks)
+        linear_params = const.IMG_WIDTH * const.IMG_HEIGHT // (div**2)
+        self.flat_section = nn.Sequential(
+            nn.Conv2d(features[-1], 4, 1),
+            nn.Conv2d(4, 1, 1),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(linear_params, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for block in self.down_blocks:
+            x = block(x)
+            x = F.max_pool2d(x, 2)
+        x = self.flat_section(x)
+        return x

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from src import const
 
 from ..loss import TVLoss, VGGLoss
-from .unet import UNet
+from .unet import HalfUNetDiscriminator, UNet
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +175,86 @@ class UNetTwoStage(BaseInpaintingModule):
         }
 
 
+class GANInpainter(BaseInpaintingModule):
+    def __init__(
+        self,
+        lambda_adv: float = 0.1,
+        **kwargs,
+    ) -> None:
+        super().__init__()
+        self.generator = UNet(**kwargs)
+        kwargs["in_channels"] = const.CHANNELS_OUT
+        self.discriminator = HalfUNetDiscriminator(**kwargs)
+        self.automatic_optimization = False
+        self.lambda_adv = lambda_adv
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.generator(x)
+        return torch.sigmoid(x)
+
+    def adv_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return F.binary_cross_entropy(y_hat, y)
+
+    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+        x, y = batch
+        y_hat = self(x)
+
+        # Compute adversarial loss
+        real_labels = torch.ones((x.size(0), 1), device=self.device)
+        fake_labels = torch.zeros((x.size(0), 1), device=self.device)
+
+        d_real = self.discriminator(y)
+        d_fake = self.discriminator(y_hat.detach())
+
+        d_loss_real = F.binary_cross_entropy_with_logits(d_real, real_labels)
+        d_loss_fake = F.binary_cross_entropy_with_logits(d_fake, fake_labels)
+        d_loss = (d_loss_real + d_loss_fake) / 2
+
+        # Generator adversarial loss
+        g_loss_adv = self.adv_loss(d_fake, real_labels)
+
+        # Reconstruction loss (BaseInpaintingModule's loss function)
+        rec_loss = self.loss(y_hat, y, stage=stage)
+
+        # Total generator loss
+        g_loss = rec_loss + self.lambda_adv * g_loss_adv
+        self.log(f"{stage}_g_loss", g_loss)
+        self.log(f"{stage}_d_loss", d_loss)
+        self.log(f"{stage}_rec_loss", rec_loss)
+        self.log(f"{stage}_adv_loss", g_loss_adv)
+
+        return {
+            "loss": g_loss,
+            "d_loss": d_loss,
+            "pred": y_hat,
+        }
+
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        res = super().training_step(batch, batch_idx)
+        g_opt, d_opt = self.optimizers()
+        self.toggle_optimizer(g_opt)
+        self.manual_backward(res["loss"])
+        g_opt.step()
+        g_opt.zero_grad()
+        self.untoggle_optimizer(g_opt)
+        self.toggle_optimizer(d_opt)
+        self.manual_backward(res["d_loss"])
+        d_opt.step()
+        d_opt.zero_grad()
+        self.untoggle_optimizer(d_opt)
+        return res
+
+    def configure_optimizers(self):
+        g_opt = torch.optim.Adam(self.generator.parameters(), lr=1e-4)
+        d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-4)
+        return [g_opt, d_opt], []
+
+
 NAMES = {
     "unet": UNetModule,
     "unet_infill_only": UNetInfillOnlyModule,
     "unet_dual": UNetDualWithFFT,
     "unet_two_stage": UNetTwoStage,
+    "gan": GANInpainter,
     "noop": NoOp,
 }

@@ -11,8 +11,9 @@ logger.setLevel(logging.INFO)
 
 
 class ReferenceImageLogger(pl.Callback):
-    def __init__(self, loader: DataLoader) -> None:
+    def __init__(self, loader: DataLoader, infill_only: bool = False) -> None:
         self.loader = loader
+        self.infill_only = infill_only
 
     def on_validation_end(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule
@@ -25,9 +26,10 @@ class ReferenceImageLogger(pl.Callback):
                 x = x.to(pl_module.device)
                 y = y.to(pl_module.device)
                 y_hat = pl_module(x)
-                mask = x[:, -1]
-                mask = torch.stack([mask] * 3, dim=1)
-                y_hat = torch.where(mask == 0, x[:, :3], y_hat)
+                if self.infill_only:
+                    mask = x[:, -1]
+                    mask = torch.stack([mask] * 3, dim=1)
+                    y_hat = torch.where(mask == 0, x[:, :3], y_hat)
                 if isinstance(y_hat, tuple):
                     mid_hat, y_hat = y_hat
                     log_image_batch(

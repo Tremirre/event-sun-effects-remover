@@ -40,9 +40,6 @@ class BaseInpaintingModule(pl.LightningModule):
     def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
         x, y = batch
         y_hat = self(x)
-        mask = x[:, -1]
-        mask = torch.stack([mask] * 3, dim=1)
-        y_hat = torch.where(mask == 0, x[:, :3], y_hat)
         loss = self.loss(y_hat, y, stage=stage)
         self.log(f"{stage}_loss", loss)
         return {
@@ -96,6 +93,21 @@ class UNetModule(BaseInpaintingModule):
         x = self.unet(x)
         x = torch.sigmoid(x)
         return x
+
+
+class UNetInfillOnlyModule(UNetModule):
+    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+        x, y = batch
+        y_hat = self(x)
+        mask = x[:, -1]
+        mask = torch.stack([mask] * 3, dim=1)
+        y_hat = torch.where(mask == 0, x[:, :3], y_hat)
+        loss = self.loss(y_hat, y, stage=stage)
+        self.log(f"{stage}_loss", loss)
+        return {
+            "loss": loss,
+            "pred": y_hat,
+        }
 
 
 class UNetDualWithFFT(BaseInpaintingModule):
@@ -165,6 +177,7 @@ class UNetTwoStage(BaseInpaintingModule):
 
 NAMES = {
     "unet": UNetModule,
+    "unet_infill_only": UNetInfillOnlyModule,
     "unet_dual": UNetDualWithFFT,
     "unet_two_stage": UNetTwoStage,
     "noop": NoOp,

@@ -45,7 +45,9 @@ if __name__ == "__main__":
     if dm.ref_paths:
         dm.setup("ref")
         logger.info("Enabling reference image logging")
-        ref_img_logger = image_loggers.ReferenceImageLogger(dm.ref_dataloader())
+        ref_img_logger = image_loggers.ReferenceImageLogger(
+            dm.ref_dataloader(), infill_only="infill" in config.module_type
+        )
         callbacks.append(ref_img_logger)
 
     model_chkp = None

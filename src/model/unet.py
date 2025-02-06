@@ -162,10 +162,9 @@ class HalfUNetDiscriminator(nn.Module):
             ]
         )
         div = 2 ** (n_blocks)
-        linear_params = const.IMG_WIDTH * const.IMG_HEIGHT // (div**2)
+        linear_params = 4 * const.IMG_WIDTH * const.IMG_HEIGHT // (div**2)
         self.flat_section = nn.Sequential(
             nn.Conv2d(features[-1], 4, 1),
-            nn.Conv2d(4, 1, 1),
             nn.ReLU(),
             nn.Flatten(),
             nn.Linear(linear_params, 128),

@@ -195,10 +195,10 @@ class GANInpainter(BaseInpaintingModule):
     def adv_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return F.binary_cross_entropy(y_hat, y)
 
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
+        g_opt, d_opt = self.optimizers()
         y_hat = self(x)
-
         # Compute adversarial loss
         real_labels = torch.ones((x.size(0), 1), device=self.device)
         fake_labels = torch.zeros((x.size(0), 1), device=self.device)
@@ -209,40 +209,36 @@ class GANInpainter(BaseInpaintingModule):
         d_loss_real = F.binary_cross_entropy_with_logits(d_real, real_labels)
         d_loss_fake = F.binary_cross_entropy_with_logits(d_fake, fake_labels)
         d_loss = (d_loss_real + d_loss_fake) / 2
-
+        self.toggle_optimizer(g_opt)
         # Generator adversarial loss
         g_loss_adv = self.adv_loss(d_fake, real_labels)
 
         # Reconstruction loss (BaseInpaintingModule's loss function)
-        rec_loss = self.loss(y_hat, y, stage=stage)
+        rec_loss = self.loss(y_hat, y, stage="traing")
 
         # Total generator loss
         g_loss = rec_loss + self.lambda_adv * g_loss_adv
-        self.log(f"{stage}_g_loss", g_loss)
-        self.log(f"{stage}_d_loss", d_loss)
-        self.log(f"{stage}_rec_loss", rec_loss)
-        self.log(f"{stage}_adv_loss", g_loss_adv)
+        self.manual_backward(g_loss, retain_graph=True)
+        g_opt.step()
+        g_opt.zero_grad()
+        self.untoggle_optimizer(g_opt)
+
+        self.toggle_optimizer(d_opt)
+        self.manual_backward(d_loss)
+        d_opt.step()
+        d_opt.zero_grad()
+        self.untoggle_optimizer(d_opt)
+
+        self.log("train_g_loss", g_loss)
+        self.log("train_d_loss", d_loss)
+        self.log("train_rec_loss", rec_loss)
+        self.log("train_adv_loss", g_loss_adv)
 
         return {
             "loss": g_loss,
             "d_loss": d_loss,
             "pred": y_hat,
         }
-
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        res = super().training_step(batch, batch_idx)
-        g_opt, d_opt = self.optimizers()
-        self.toggle_optimizer(g_opt)
-        self.manual_backward(res["loss"])
-        g_opt.step()
-        g_opt.zero_grad()
-        self.untoggle_optimizer(g_opt)
-        self.toggle_optimizer(d_opt)
-        self.manual_backward(res["d_loss"])
-        d_opt.step()
-        d_opt.zero_grad()
-        self.untoggle_optimizer(d_opt)
-        return res
 
     def configure_optimizers(self):
         g_opt = torch.optim.Adam(self.generator.parameters(), lr=1e-4)

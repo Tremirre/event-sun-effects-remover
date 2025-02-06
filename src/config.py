@@ -19,6 +19,7 @@ class Config:
     max_epochs: int
     frac_used: float
     diff_intensity: int
+    gan_adv_weight: float = 0.1
     img_glob: str = "**/*.npy"
     module_type: str = "unet"
     event_channel: bool = False
@@ -86,6 +87,12 @@ class Config:
             help="Light intensity threshold for reference images",
         )
         parser.add_argument(
+            "--gan-adv-weight",
+            type=float,
+            default=0.1,
+            help="Weight for adversarial loss in GAN",
+        )
+        parser.add_argument(
             "--event-channel",
             action="store_true",
             help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
@@ -149,6 +156,7 @@ class Config:
             kernel_size=self.unet_kernel,
             with_fft=self.unet_fft,
             in_channels=5 if self.event_channel else 4,
+            gan_adv_weight=self.gan_adv_weight,
         )
         if self.weights:
             model.load_state_dict(torch.load(self.weights))

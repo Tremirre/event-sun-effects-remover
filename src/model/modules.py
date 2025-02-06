@@ -178,7 +178,7 @@ class UNetTwoStage(BaseInpaintingModule):
 class GANInpainter(BaseInpaintingModule):
     def __init__(
         self,
-        lambda_adv: float = 0.1,
+        gan_adv_weight: float,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -186,42 +186,33 @@ class GANInpainter(BaseInpaintingModule):
         kwargs["in_channels"] = const.CHANNELS_OUT
         self.discriminator = HalfUNetDiscriminator(**kwargs)
         self.automatic_optimization = False
-        self.lambda_adv = lambda_adv
+        self.gan_adv_weight = gan_adv_weight
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.generator(x)
         return torch.sigmoid(x)
 
     def adv_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return F.binary_cross_entropy(y_hat, y)
+        return F.binary_cross_entropy_with_logits(y_hat, y)
 
     def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         x, y = batch
-        g_opt, d_opt = self.optimizers()
+        g_opt, d_opt = self.optimizers()  # type: ignore
+
+        # Generate fake image
         y_hat = self(x)
-        # Compute adversarial loss
+
+        # Real and Fake Labels
         real_labels = torch.ones((x.size(0), 1), device=self.device)
         fake_labels = torch.zeros((x.size(0), 1), device=self.device)
 
+        # --- Step 1: Train Discriminator ---
         d_real = self.discriminator(y)
         d_fake = self.discriminator(y_hat.detach())
 
-        d_loss_real = F.binary_cross_entropy_with_logits(d_real, real_labels)
-        d_loss_fake = F.binary_cross_entropy_with_logits(d_fake, fake_labels)
+        d_loss_real = self.adv_loss(d_real, real_labels)
+        d_loss_fake = self.adv_loss(d_fake, fake_labels)
         d_loss = (d_loss_real + d_loss_fake) / 2
-        self.toggle_optimizer(g_opt)
-        # Generator adversarial loss
-        g_loss_adv = self.adv_loss(d_fake, real_labels)
-
-        # Reconstruction loss (BaseInpaintingModule's loss function)
-        rec_loss = self.loss(y_hat, y, stage="traing")
-
-        # Total generator loss
-        g_loss = rec_loss + self.lambda_adv * g_loss_adv
-        self.manual_backward(g_loss, retain_graph=True)
-        g_opt.step()
-        g_opt.zero_grad()
-        self.untoggle_optimizer(g_opt)
 
         self.toggle_optimizer(d_opt)
         self.manual_backward(d_loss)
@@ -229,20 +220,37 @@ class GANInpainter(BaseInpaintingModule):
         d_opt.zero_grad()
         self.untoggle_optimizer(d_opt)
 
+        # --- Step 2: Train Generator ---
+        d_fake = self.discriminator(y_hat)  # Re-evaluate fake sample
+        g_loss_adv = self.adv_loss(d_fake, real_labels)  # Generator tries to fool D
+
+        # Reconstruction loss
+        rec_loss = self.loss(y_hat, y, stage="traing")
+
+        # Total Generator Loss
+        g_loss = rec_loss + self.gan_adv_weight * g_loss_adv
+
+        self.toggle_optimizer(g_opt)
+        self.manual_backward(g_loss)
+        g_opt.step()
+        g_opt.zero_grad()
+        self.untoggle_optimizer(g_opt)
+
+        # Logging
         self.log("train_g_loss", g_loss)
         self.log("train_d_loss", d_loss)
         self.log("train_rec_loss", rec_loss)
         self.log("train_adv_loss", g_loss_adv)
 
-        return {
-            "loss": g_loss,
-            "d_loss": d_loss,
-            "pred": y_hat,
-        }
+        return {"loss": g_loss, "d_loss": d_loss, "pred": y_hat}
 
     def configure_optimizers(self):
-        g_opt = torch.optim.Adam(self.generator.parameters(), lr=1e-4)
-        d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-4)
+        g_opt = torch.optim.Adam(  # type: ignore
+            self.generator.parameters(), lr=1e-4, betas=(0.5, 0.999)
+        )
+        d_opt = torch.optim.Adam(  # type: ignore
+            self.discriminator.parameters(), lr=1e-4, betas=(0.5, 0.999)
+        )
         return [g_opt, d_opt], []
 
 

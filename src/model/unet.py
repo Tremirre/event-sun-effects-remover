@@ -170,7 +170,6 @@ class HalfUNetDiscriminator(nn.Module):
             nn.Linear(linear_params, 128),
             nn.ReLU(),
             nn.Linear(128, 1),
-            nn.Sigmoid(),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

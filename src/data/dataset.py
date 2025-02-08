@@ -34,6 +34,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         separate_event_channel: bool = True,
         mask_progression: bool = False,
         soft_mask: bool = False,
+        yuv_interpolation: bool = False,
     ) -> None:
         self.img_paths = img_paths
         self.masker = masker
@@ -43,6 +44,12 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.mask_progression = mask_progression
         self._retrieve_count = 0
         self.soft_mask = soft_mask
+        self.yuv_interpolation = yuv_interpolation
+
+        if self.yuv_interpolation:
+            assert (
+                not self.separate_event_channel
+            ), "Cannot interpolate YUV and have separate event channel"
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -55,6 +62,22 @@ class BGREMDataset(torch.utils.data.Dataset):
             logger.info("Progressing mask")
             self.masker.progress()
             self._retrieve_count = 0
+
+    def mask_out_image(
+        self, mask_expanded: np.ndarray, bgr: np.ndarray, event_expanded: np.ndarray
+    ) -> np.ndarray:
+        if self.separate_event_channel:
+            bgr = bgr.astype(np.float32) / 255.0
+            return (1 - mask_expanded) * bgr * 255.0
+        if not self.yuv_interpolation:
+            bgr = bgr.astype(np.float32) / 255.0
+            return ((1 - mask_expanded) * bgr + mask_expanded * event_expanded) * 255.0
+        yuv = cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV)
+        yuv = yuv.astype(np.float32) / 255.0
+        yuv[:, :, 0] = (1 - mask_expanded[:, :, 0]) * yuv[:, :, 0] + mask_expanded[
+            :, :, 0
+        ] * event_expanded[:, :, 0]
+        return cv2.cvtColor((yuv * 255.0).astype(np.uint8), cv2.COLOR_YUV2BGR)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         self.on_retrieve()
@@ -79,13 +102,10 @@ class BGREMDataset(torch.utils.data.Dataset):
 
         mask_expanded = np.repeat(mask, 3, axis=-1)
         event_expanded = np.repeat(event, 3, axis=-1).astype(np.float32) / 255.0
-        bgr = bgr.astype(np.float32) / 255.0
-        if self.separate_event_channel:
-            bgr = (1 - mask_expanded) * bgr
-        else:
-            bgr = (1 - mask_expanded) * bgr + mask_expanded * event_expanded
-        bgr = (bgr * 255.0).astype(np.uint8)
+
+        bgr = self.mask_out_image(mask_expanded, bgr, event_expanded).astype(np.uint8)
         event_expanded = (event_expanded * 255.0).astype(np.uint8)
+
         if self.bgr_transform:
             bgr = self.bgr_transform(bgr)
             target = self.bgr_transform(target)

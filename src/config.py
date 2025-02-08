@@ -26,6 +26,7 @@ class Config:
     num_workers: int = 0
     profile: bool = False
     log_tensorboard: bool = False
+    yuv_interpolation: bool = False
     progressive_masking: bool = False
     soft_masking: bool = False
     run_tags: str = "default"
@@ -97,6 +98,11 @@ class Config:
             "--event-channel",
             action="store_true",
             help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
+        )
+        parser.add_argument(
+            "--yuv-interpolation",
+            action="store_true",
+            help="Interpolate Y channel with event data (only if event channel is not separate)",
         )
         parser.add_argument(
             "--progressive-masking",

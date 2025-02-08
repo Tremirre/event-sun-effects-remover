@@ -28,6 +28,7 @@ class EventDataModule(pl.LightningDataModule):
         frac_used: float = 1,
         sep_event_channel: bool = False,
         progressive_masking: bool = False,
+        yuv_interpolation: bool = False,
         soft_masking: bool = False,
         train_img_glob: str = DATA_PATTERN,
     ) -> None:
@@ -43,6 +44,7 @@ class EventDataModule(pl.LightningDataModule):
         self.ref_paths = list(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
         self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
         self.progressive_masking = progressive_masking
+        self.yuv_interpolation = yuv_interpolation
         self.soft_masking = soft_masking
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
@@ -132,6 +134,7 @@ class EventDataModule(pl.LightningDataModule):
                 ),
                 separate_event_channel=self.sep_event_channel,
                 soft_mask=self.soft_masking,
+                yuv_interpolation=self.yuv_interpolation,
             )
             self.val_dataset = dataset.BGREMDataset(
                 val_files,
@@ -143,6 +146,7 @@ class EventDataModule(pl.LightningDataModule):
                 ),
                 separate_event_channel=self.sep_event_channel,
                 soft_mask=self.soft_masking,
+                yuv_interpolation=self.yuv_interpolation,
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREMDataset(
@@ -155,6 +159,7 @@ class EventDataModule(pl.LightningDataModule):
                 ),
                 separate_event_channel=self.sep_event_channel,
                 soft_mask=self.soft_masking,
+                yuv_interpolation=self.yuv_interpolation,
             )
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGREMDataset(
@@ -167,6 +172,7 @@ class EventDataModule(pl.LightningDataModule):
                 ),
                 separate_event_channel=self.sep_event_channel,
                 soft_mask=self.soft_masking,
+                yuv_interpolation=self.yuv_interpolation,
             )
 
     def get_dataset_sizes(self) -> dict[str, int]:

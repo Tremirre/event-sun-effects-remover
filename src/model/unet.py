@@ -90,6 +90,7 @@ class UNet(nn.Module):
         in_channels: int,
         kernel_size: int = 3,
         with_fft: bool = False,
+        **kwargs,
     ) -> None:
         super().__init__()
         features = [in_channels]

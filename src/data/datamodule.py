@@ -28,6 +28,7 @@ class EventDataModule(pl.LightningDataModule):
         frac_used: float = 1,
         sep_event_channel: bool = False,
         progressive_masking: bool = False,
+        soft_masking: bool = False,
         train_img_glob: str = DATA_PATTERN,
     ) -> None:
         super().__init__()
@@ -42,6 +43,7 @@ class EventDataModule(pl.LightningDataModule):
         self.ref_paths = list(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
         self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
         self.progressive_masking = progressive_masking
+        self.soft_masking = soft_masking
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
@@ -125,10 +127,11 @@ class EventDataModule(pl.LightningDataModule):
                     [
                         transforms.RandomizedBrightnessScaler(0.5, 1.5),
                         transforms.RandomizedContrastScaler(0.5, 1.5),
-                        transforms.RadnomizedGaussianBlur(1, 10),
+                        # transforms.RadnomizedGaussianBlur(1, 10),
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
+                soft_mask=self.soft_masking,
             )
             self.val_dataset = dataset.BGREMDataset(
                 val_files,
@@ -139,6 +142,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
+                soft_mask=self.soft_masking,
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREMDataset(
@@ -150,6 +154,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
+                soft_mask=self.soft_masking,
             )
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGREMDataset(
@@ -161,6 +166,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
+                soft_mask=self.soft_masking,
             )
 
     def get_dataset_sizes(self) -> dict[str, int]:

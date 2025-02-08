@@ -38,6 +38,7 @@ if __name__ == "__main__":
         sep_event_channel=config.event_channel,
         train_img_glob=config.img_glob,
         progressive_masking=config.progressive_masking,
+        soft_masking=config.soft_masking,
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()

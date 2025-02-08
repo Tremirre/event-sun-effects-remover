@@ -2,6 +2,7 @@ import logging
 import pathlib
 import typing
 
+import cv2
 import numpy as np
 import torch
 import torch.utils.data
@@ -32,6 +33,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         event_transform: None | Transform = None,
         separate_event_channel: bool = True,
         mask_progression: bool = False,
+        soft_mask: bool = False,
     ) -> None:
         self.img_paths = img_paths
         self.masker = masker
@@ -40,6 +42,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.separate_event_channel = separate_event_channel
         self.mask_progression = mask_progression
         self._retrieve_count = 0
+        self.soft_mask = soft_mask
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -64,6 +67,10 @@ class BGREMDataset(torch.utils.data.Dataset):
         event = img[:, :, 3:4]
         event_mask = img[:, :, 4]
         mask = self.masker(idx, bgr, event_mask, event)
+        mask = mask.astype(np.float32) / 255.0
+        if self.soft_mask:
+            mask = cv2.GaussianBlur(mask, (11, 11), 20)
+
         target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)
 
@@ -71,11 +78,14 @@ class BGREMDataset(torch.utils.data.Dataset):
             event = self.event_transform(event)
 
         mask_expanded = np.repeat(mask, 3, axis=-1)
-        event_expanded = np.repeat(event, 3, axis=-1)
-        bgr = np.where(
-            mask_expanded, 0 if self.separate_event_channel else event_expanded, bgr
-        )
-
+        event_expanded = np.repeat(event, 3, axis=-1).astype(np.float32) / 255.0
+        bgr = bgr.astype(np.float32) / 255.0
+        if self.separate_event_channel:
+            bgr = (1 - mask_expanded) * bgr
+        else:
+            bgr = (1 - mask_expanded) * bgr + mask_expanded * event_expanded
+        bgr = (bgr * 255.0).astype(np.uint8)
+        event_expanded = (event_expanded * 255.0).astype(np.uint8)
         if self.bgr_transform:
             bgr = self.bgr_transform(bgr)
             target = self.bgr_transform(target)

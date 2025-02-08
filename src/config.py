@@ -27,6 +27,7 @@ class Config:
     profile: bool = False
     log_tensorboard: bool = False
     progressive_masking: bool = False
+    soft_masking: bool = False
     run_tags: str = "default"
     save: bool = False
     full_pred: bool = False
@@ -101,6 +102,11 @@ class Config:
             "--progressive-masking",
             action="store_true",
             help="Progressively increase mask complexity",
+        )
+        parser.add_argument(
+            "--soft-masking",
+            action="store_true",
+            help="Use soft masks",
         )
         parser.add_argument(
             "--img-glob",

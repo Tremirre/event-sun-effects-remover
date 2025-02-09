@@ -30,8 +30,11 @@ def log_image_batch(
         x_event = x[:, 3:4]
         x_event = torch.cat([x_event, x_event, x_event], dim=1)
         x_mask = x[:, 4:5]
+        x_event = x_event.astype(torch.float32) / 255.0
         x_mask = torch.cat([x_mask, x_mask, x_mask], dim=1)
-        x_bgr = torch.where(x_mask > 0, x_event, x_bgr)
+        x_bgr = x_bgr.astype(torch.float32) / 255.0
+        x_bgr = (1 - x_mask) * x_bgr * 255.0 + x_mask * x_event * 255.0
+        x_bgr = x_bgr.astype(torch.uint8)
     if isinstance(logger, pl_loggers.TensorBoardLogger):
         logger.experiment.add_images(f"{tag}_input", x_bgr, global_step=global_step)
         logger.experiment.add_images(f"{tag}_output", y_hat, global_step=global_step)

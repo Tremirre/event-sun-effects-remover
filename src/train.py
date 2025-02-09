@@ -39,6 +39,7 @@ if __name__ == "__main__":
         train_img_glob=config.img_glob,
         progressive_masking=config.progressive_masking,
         soft_masking=config.soft_masking,
+        yuv_interpolation=config.yuv_interpolation,
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()

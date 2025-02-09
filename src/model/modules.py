@@ -62,17 +62,11 @@ class BaseInpaintingModule(pl.LightningModule):
 
 class NoOp(BaseInpaintingModule):
     def __init__(self, **kwargs) -> None:
+        self.manual_backward = True
         super().__init__()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x[:, :3]
-
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
-        x, y = batch
-        return {
-            "loss": torch.tensor(0.0),
-            "pred": self(x),
-        }
 
     def configure_optimizers(self):
         return None

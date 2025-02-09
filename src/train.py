@@ -84,16 +84,13 @@ if __name__ == "__main__":
     model = config.get_model()
     trainer.fit(model, dm)
 
-    if config.module_type != "noop":
-        if model_chkp is not None:
-            logger.info(
-                f"Testing best model from checkpoint: {model_chkp.best_model_path}"
-            )
-            model.load_state_dict(
-                torch.load(model_chkp.best_model_path, weights_only=True)["state_dict"]
-            )
-        utils.set_global_seed(1)
-        trainer.test(model, dm)
+    if model_chkp is not None:
+        logger.info(f"Testing best model from checkpoint: {model_chkp.best_model_path}")
+        model.load_state_dict(
+            torch.load(model_chkp.best_model_path, weights_only=True)["state_dict"]
+        )
+    utils.set_global_seed(1)
+    trainer.test(model, dm)
 
     if model_chkp is not None:
         best_model_path = model_chkp.best_model_path

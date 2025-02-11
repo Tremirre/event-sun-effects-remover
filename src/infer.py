@@ -23,7 +23,7 @@ if __name__ == "__main__":
     config = Config.from_args()
     config.prepare_inference()
     model = config.get_model().to(DEVICE)
-    img_paths = list(config.data_dir.glob("**/*.npy"))
+    img_paths = sorted(config.data_dir.glob("**/*.npy"))
     logger.info(f"Found {len(img_paths)} images in {config.data_dir}")
     infer_dataset = dataset.BGREMDataset(
         img_paths,

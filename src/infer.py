@@ -22,7 +22,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if __name__ == "__main__":
     config = Config.from_args()
     config.prepare_inference()
-    model = config.get_model()
+    model = config.get_model().to(DEVICE)
     img_paths = list(config.data_dir.glob("**/*.npy"))
     logger.info(f"Found {len(img_paths)} images in {config.data_dir}")
     infer_dataset = dataset.BGREMDataset(
@@ -30,6 +30,8 @@ if __name__ == "__main__":
         masker=transforms.DiffIntensityMasker(config.diff_intensity),
         bgr_transform=T.Compose([T.ToTensor()]),
         separate_event_channel=config.event_channel,
+        yuv_interpolation=config.yuv_interpolation,
+        soft_mask=config.soft_masking,
     )
     infer_loader = torch.utils.data.DataLoader(
         infer_dataset,

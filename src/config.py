@@ -120,6 +120,26 @@ class Config:
             default="**/*.npy",
             help="Glob pattern for train image files",
         )
+        parser.add_argument(
+            "--weights",
+            type=pathlib.Path,
+            help="Path to weights file",
+        )
+        parser.add_argument(
+            "--data-dir",
+            type=pathlib.Path,
+            help="Path to data directory",
+        )
+        parser.add_argument(
+            "--output",
+            type=pathlib.Path,
+            help="Output path",
+        )
+        parser.add_argument(
+            "--full-pred",
+            action="store_true",
+            help="Output full prediction",
+        )
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
@@ -171,5 +191,8 @@ class Config:
             gan_adv_weight=self.gan_adv_weight,
         )
         if self.weights:
-            model.load_state_dict(torch.load(self.weights))
+            weights = torch.load(self.weights, weights_only=True)
+            if "state_dict" in weights:
+                weights = weights["state_dict"]
+            model.load_state_dict(weights)
         return model

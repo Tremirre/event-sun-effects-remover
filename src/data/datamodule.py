@@ -29,7 +29,7 @@ class EventDataModule(pl.LightningDataModule):
         sep_event_channel: bool = False,
         progressive_masking: bool = False,
         yuv_interpolation: bool = False,
-        soft_masking: bool = False,
+        mask_blur_factor: int = 0,
         train_img_glob: str = DATA_PATTERN,
     ) -> None:
         super().__init__()
@@ -45,7 +45,7 @@ class EventDataModule(pl.LightningDataModule):
         self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
         self.progressive_masking = progressive_masking
         self.yuv_interpolation = yuv_interpolation
-        self.soft_masking = soft_masking
+        self.mask_blur_factor = mask_blur_factor
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
@@ -133,7 +133,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
-                soft_mask=self.soft_masking,
+                blur_factor=self.mask_blur_factor,
                 yuv_interpolation=self.yuv_interpolation,
             )
             self.val_dataset = dataset.BGREMDataset(
@@ -145,7 +145,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
-                soft_mask=self.soft_masking,
+                blur_factor=self.mask_blur_factor,
                 yuv_interpolation=self.yuv_interpolation,
             )
         if stage == "test" or stage is None:
@@ -158,7 +158,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
-                soft_mask=self.soft_masking,
+                blur_factor=self.mask_blur_factor,
                 yuv_interpolation=self.yuv_interpolation,
             )
         if stage == "ref" or stage is None:
@@ -171,7 +171,7 @@ class EventDataModule(pl.LightningDataModule):
                     ]
                 ),
                 separate_event_channel=self.sep_event_channel,
-                soft_mask=self.soft_masking,
+                blur_factor=self.mask_blur_factor,
                 yuv_interpolation=self.yuv_interpolation,
             )
 

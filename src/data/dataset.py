@@ -33,7 +33,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         event_transform: None | Transform = None,
         separate_event_channel: bool = True,
         mask_progression: bool = False,
-        soft_mask: bool = False,
+        blur_factor: int = 0,
         yuv_interpolation: bool = False,
     ) -> None:
         self.img_paths = img_paths
@@ -43,7 +43,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.separate_event_channel = separate_event_channel
         self.mask_progression = mask_progression
         self._retrieve_count = 0
-        self.soft_mask = soft_mask
+        self.blur_factor = blur_factor
         self.yuv_interpolation = yuv_interpolation
 
         if self.yuv_interpolation:
@@ -91,8 +91,9 @@ class BGREMDataset(torch.utils.data.Dataset):
         event_mask = img[:, :, 4]
         mask = self.masker(idx, bgr, event_mask, event)
         mask = mask.astype(np.float32) / 255.0
-        if self.soft_mask:
-            mask = cv2.GaussianBlur(mask, (11, 11), 20)
+        if self.blur_factor > 0:
+            kernel_size = 2 * self.blur_factor + 1
+            mask = cv2.GaussianBlur(mask, (kernel_size, kernel_size), self.blur_factor)
 
         target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)

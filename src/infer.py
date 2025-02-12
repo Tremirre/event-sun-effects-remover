@@ -31,7 +31,7 @@ if __name__ == "__main__":
         bgr_transform=T.Compose([T.ToTensor()]),
         separate_event_channel=config.event_channel,
         yuv_interpolation=config.yuv_interpolation,
-        soft_mask=config.soft_masking,
+        blur_factor=config.mask_blur_factor,
     )
     infer_loader = torch.utils.data.DataLoader(
         infer_dataset,

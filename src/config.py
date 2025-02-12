@@ -28,7 +28,7 @@ class Config:
     log_tensorboard: bool = False
     yuv_interpolation: bool = False
     progressive_masking: bool = False
-    soft_masking: bool = False
+    mask_blur_factor: int = 0
     run_tags: str = "default"
     save: bool = False
     full_pred: bool = False
@@ -110,9 +110,10 @@ class Config:
             help="Progressively increase mask complexity",
         )
         parser.add_argument(
-            "--soft-masking",
-            action="store_true",
-            help="Use soft masks",
+            "--mask-blur-factor",
+            type=int,
+            help="Gaussian blur factor for mask, sigma = mask_blur_factor, kernel_size = 2 * mask_blur_factor + 1",
+            default=0,
         )
         parser.add_argument(
             "--img-glob",

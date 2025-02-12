@@ -38,7 +38,7 @@ if __name__ == "__main__":
         sep_event_channel=config.event_channel,
         train_img_glob=config.img_glob,
         progressive_masking=config.progressive_masking,
-        soft_masking=config.soft_masking,
+        mask_blur_factor=config.mask_blur_factor,
         yuv_interpolation=config.yuv_interpolation,
     )
     run_logger = config.get_logger()

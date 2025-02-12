@@ -94,6 +94,8 @@ if __name__ == "__main__":
 
     if model_chkp is not None:
         best_model_path = model_chkp.best_model_path
+        best_epoch = int(best_model_path.split("-")[-1])
+        run_logger.experiment["best_epoch"] = best_epoch
         if isinstance(run_logger, loggers.NeptuneLogger):
             logger.info("Uploading model to Neptune")
             run_logger.experiment["model"].upload(best_model_path)

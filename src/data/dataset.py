@@ -45,6 +45,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         self._retrieve_count = 0
         self.blur_factor = blur_factor
         self.yuv_interpolation = yuv_interpolation
+        self.blur_kernel = (2 * blur_factor + 1, 2 * blur_factor + 1)
 
         if self.yuv_interpolation:
             assert (
@@ -89,11 +90,14 @@ class BGREMDataset(torch.utils.data.Dataset):
         bgr = img[:, :, :3]
         event = img[:, :, 3:4]
         event_mask = img[:, :, 4]
+        if self.blur_factor > 0:
+            # erode event mask to prevent masking out too much
+            event_mask = cv2.erode(event_mask, np.ones(self.blur_kernel, np.uint8))
         mask = self.masker(idx, bgr, event_mask, event)
         mask = mask.astype(np.float32) / 255.0
         if self.blur_factor > 0:
-            kernel_size = 2 * self.blur_factor + 1
-            mask = cv2.GaussianBlur(mask, (kernel_size, kernel_size), self.blur_factor)
+            # blur mask
+            mask = cv2.GaussianBlur(mask, self.blur_kernel, self.blur_factor)
 
         target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)

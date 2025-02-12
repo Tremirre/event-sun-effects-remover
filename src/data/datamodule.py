@@ -41,7 +41,7 @@ class EventDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.frac_used = frac_used
         self.ref_dir = ref_dir
-        self.ref_paths = list(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
+        self.ref_paths = sorted(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
         self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
         self.progressive_masking = progressive_masking
         self.yuv_interpolation = yuv_interpolation

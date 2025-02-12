@@ -2,6 +2,7 @@ import argparse
 import dataclasses
 import pathlib
 
+import pytorch_lightning as pl
 import torch
 from pytorch_lightning import loggers, profilers
 from torch.profiler import tensorboard_trace_handler
@@ -182,7 +183,7 @@ class Config:
             )
         return None
 
-    def get_model(self):
+    def get_model(self) -> pl.LightningModule:
         model = modules.NAMES[self.module_type](
             n_blocks=self.unet_blocks,
             block_depth=self.unet_depth,

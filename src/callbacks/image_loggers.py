@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
 
+from src.const import REFERENCE_LOGGING_FREQ
 from src.utils import log_image_batch
 
 logger = logging.getLogger(__name__)
@@ -11,14 +12,12 @@ logger.setLevel(logging.INFO)
 
 
 class ReferenceImageLogger(pl.Callback):
-    def __init__(self, loader: DataLoader, infill_only: bool = False) -> None:
+    def __init__(self, loader: DataLoader) -> None:
         self.loader = loader
-        self.infill_only = infill_only
 
-    def on_validation_end(
+    def log_ref_images(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule
     ) -> None:
-        logger.info("Logging reference images")
         pl_module.eval()
         with torch.no_grad():
             for i, batch in enumerate(self.loader):
@@ -26,10 +25,11 @@ class ReferenceImageLogger(pl.Callback):
                 x = x.to(pl_module.device)
                 y = y.to(pl_module.device)
                 y_hat = pl_module(x)
-                if self.infill_only:
-                    mask = x[:, -1]
-                    mask = torch.stack([mask] * 3, dim=1)
-                    y_hat = torch.where(mask == 0, x[:, :3], y_hat)
+                y_bgr = y[:, :3]
+                y_hat_bgr = y_hat[:, :3]
+                mask = x[:, -1]
+                mask = torch.stack([mask] * 3, dim=1)
+                y_hat = ((1 - mask) * y_bgr + mask * y_hat_bgr).clamp(0, 1)
                 if isinstance(y_hat, tuple):
                     mid_hat, y_hat = y_hat
                     log_image_batch(
@@ -43,6 +43,17 @@ class ReferenceImageLogger(pl.Callback):
                 log_image_batch(
                     x, y_hat, y, trainer.logger, trainer.global_step, f"ref_{i}"
                 )
+
+    def on_validation_end(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule
+    ) -> None:
+        if (
+            trainer.current_epoch % REFERENCE_LOGGING_FREQ != 0
+            or trainer.current_epoch == 0
+        ):
+            return
+        logger.info("Logging reference images")
+        self.log_ref_images(trainer, pl_module)
 
 
 class ValBatchImageLogger(pl.Callback):

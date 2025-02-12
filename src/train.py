@@ -44,12 +44,11 @@ if __name__ == "__main__":
     run_logger = config.get_logger()
     profiler = config.get_profiler()
     callbacks: list[pl.Callback] = [image_loggers.ValBatchImageLogger()]
+    ref_img_logger = None
     if dm.ref_paths:
         dm.setup("ref")
         logger.info("Enabling reference image logging")
-        ref_img_logger = image_loggers.ReferenceImageLogger(
-            dm.ref_dataloader(), infill_only="infill" in config.module_type
-        )
+        ref_img_logger = image_loggers.ReferenceImageLogger(dm.ref_dataloader())
         callbacks.append(ref_img_logger)
 
     model_chkp = None
@@ -93,10 +92,14 @@ if __name__ == "__main__":
     trainer.test(model, dm)
 
     if model_chkp is not None:
+        logger.info("Logging best model")
         best_model_path = model_chkp.best_model_path
-        best_epoch = int(best_model_path.split("-")[-1])
+        best_epoch = int(best_model_path.split("epoch=")[1].split(".ckpt")[0])
         run_logger.experiment["best_epoch"] = best_epoch
         if isinstance(run_logger, loggers.NeptuneLogger):
             logger.info("Uploading model to Neptune")
             run_logger.experiment["model"].upload(best_model_path)
+        if ref_img_logger:
+            logger.info("Logging best model reference images (epoch %d)", best_epoch)
+            ref_img_logger.log_ref_images(trainer, model)
     run_logger.experiment.stop()

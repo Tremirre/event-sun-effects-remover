@@ -28,10 +28,10 @@ class BaseInpaintingModule(pl.LightningModule):
         vgg_loss = self.vgg_loss(y_hat, y)
         tv_loss = self.tv_loss(y_hat)
         if stage:
-            self.log(f"{stage}_mae", mae)
-            self.log(f"{stage}_ssim", ssim)
-            self.log(f"{stage}_vgg", vgg_loss)
-            self.log(f"{stage}_tv", tv_loss)
+            self.log(f"{stage}_mae", mae, on_epoch=True)
+            self.log(f"{stage}_ssim", ssim, on_epoch=True)
+            self.log(f"{stage}_vgg", vgg_loss, on_epoch=True)
+            self.log(f"{stage}_tv", tv_loss, on_epoch=True)
         return 1.0 * mae + 0.5 * ssim + 0.1 * vgg_loss + 0.05 * tv_loss
 
     def forward(self, x):
@@ -45,8 +45,8 @@ class BaseInpaintingModule(pl.LightningModule):
         y_hat_infill = (1 - mask) * y + mask * (y_hat.clone().detach())
         loss = self.loss(y_hat, y, stage=stage)
         infill_loss = self.loss(y_hat_infill, y, stage=f"{stage}_infill")
-        self.log(f"{stage}_loss", loss)
-        self.log(f"{stage}_infill_loss", infill_loss)
+        self.log(f"{stage}_loss", loss, on_epoch=True)
+        self.log(f"{stage}_infill_loss", infill_loss, on_epoch=True)
         return {
             "loss": loss,
             "infill_loss": infill_loss,

@@ -40,10 +40,16 @@ class BaseInpaintingModule(pl.LightningModule):
     def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
         x, y = batch
         y_hat = self(x)
+        mask = x[:, -1]
+        mask = torch.stack([mask] * 3, dim=1)
+        y_hat_infill = (1 - mask) * y + mask * (y_hat.clone().detach())
         loss = self.loss(y_hat, y, stage=stage)
+        infill_loss = self.loss(y_hat_infill, y, stage=f"{stage}_infill")
         self.log(f"{stage}_loss", loss)
+        self.log(f"{stage}_infill_loss", infill_loss)
         return {
             "loss": loss,
+            "infill_loss": infill_loss,
             "pred": y_hat,
         }
 

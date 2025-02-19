@@ -30,6 +30,7 @@ class Config:
     yuv_interpolation: bool = False
     progressive_masking: bool = False
     mask_blur_factor: int = 0
+    sun_aug_prob: float = 0
     run_tags: str = "default"
     save: bool = False
     full_pred: bool = False
@@ -117,6 +118,12 @@ class Config:
             default=0,
         )
         parser.add_argument(
+            "--sun-aug-prob",
+            type=float,
+            default=0,
+            help="Probability of applying SUN Augmentation",
+        )
+        parser.add_argument(
             "--img-glob",
             type=str,
             default="**/*.npy",
@@ -148,6 +155,9 @@ class Config:
         assert (
             0 <= self.diff_intensity <= 255
         ), "Diff intensity threshold must be in [0, 255]"
+        assert (
+            0 <= self.sun_aug_prob <= 1
+        ), "SUN Augmentation probability must be in [0, 1]"
 
     def prepare_inference(self):
         if self.weights:

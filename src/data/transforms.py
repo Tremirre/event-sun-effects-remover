@@ -27,6 +27,41 @@ class RandomizedContrastScaler:
         return np.clip(img_gs, 0, 255).astype(np.uint8)
 
 
+class RandomizedSunAdder:
+    def __init__(self, prob: float, min_radius: int = 3, max_radius: int = 5):
+        self.prob = prob
+        self.min_radius = min_radius
+        self.max_radius = max_radius
+        assert 0 <= prob <= 1, "Probability must be between 0 and 1"
+
+    def __call__(self, gs_with_mask: np.ndarray) -> np.ndarray:
+        img_gs = gs_with_mask[:, :, 0]
+        if np.random.rand() > self.prob:
+            return img_gs[:, :, np.newaxis]
+
+        mask = gs_with_mask[:, :, 1]
+        mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=1)
+        candidates = np.argwhere(mask > 0)
+        if len(candidates) == 0:
+            return img_gs[:, :, np.newaxis]
+
+        back_strength = np.random.randint(20, 51)
+        center = tuple(candidates[np.random.randint(len(candidates))])[::-1]
+        radius = np.random.randint(self.min_radius, self.max_radius + 1)
+        dec_canvas = np.zeros_like(img_gs)
+        dec_canvas = cv2.circle(dec_canvas, center, 16 * radius, back_strength, -1)  # type: ignore
+        dec_canvas = cv2.circle(dec_canvas, center, 4 * radius, 0, -1)  # type: ignore
+        dec_canvas = cv2.GaussianBlur(dec_canvas, (31, 31), 15)
+
+        add_canvas = np.zeros_like(img_gs)
+        add_canvas = cv2.circle(add_canvas, center, radius, 255, -1)  # type: ignore
+        add_canvas = cv2.GaussianBlur(add_canvas, (5, 5), 5)
+
+        img_gs = cv2.subtract(img_gs, dec_canvas)
+        img_gs = cv2.add(img_gs, add_canvas)
+        return img_gs[:, :, np.newaxis]
+
+
 class RadnomizedGaussianBlur:
     def __init__(self, min_sigma: float, max_sigma: float):
         self.min_sigma = min_sigma

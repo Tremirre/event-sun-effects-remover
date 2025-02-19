@@ -40,6 +40,7 @@ if __name__ == "__main__":
         progressive_masking=config.progressive_masking,
         mask_blur_factor=config.mask_blur_factor,
         yuv_interpolation=config.yuv_interpolation,
+        sun_aug_prob=config.sun_aug_prob,
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()

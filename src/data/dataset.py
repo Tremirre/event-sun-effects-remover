@@ -21,7 +21,10 @@ class Masker(typing.Protocol):
 
 
 class Transform(typing.Protocol):
-    def __call__(self, img: np.ndarray | torch.Tensor) -> torch.Tensor: ...
+    def __call__(
+        self,
+        img: np.ndarray | torch.Tensor,
+    ) -> torch.Tensor: ...
 
 
 class BGREMDataset(torch.utils.data.Dataset):
@@ -94,6 +97,11 @@ class BGREMDataset(torch.utils.data.Dataset):
             # erode event mask to prevent masking out too much
             event_mask = cv2.erode(event_mask, np.ones(self.blur_kernel, np.uint8))
         mask = self.masker(idx, bgr, event_mask, event)
+        if self.event_transform:
+            event = np.dstack([event, mask])
+            event = self.event_transform(event)
+            event = event[:, :, 0:1]
+
         mask = mask.astype(np.float32) / 255.0
         if self.blur_factor > 0:
             # blur mask
@@ -101,9 +109,6 @@ class BGREMDataset(torch.utils.data.Dataset):
 
         target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)
-
-        if self.event_transform:
-            event = self.event_transform(event)
 
         mask_expanded = np.repeat(mask, 3, axis=-1)
         event_expanded = np.repeat(event, 3, axis=-1).astype(np.float32) / 255.0

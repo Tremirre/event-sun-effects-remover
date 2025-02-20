@@ -62,6 +62,36 @@ class RandomizedSunAdder:
         return img_gs[:, :, np.newaxis]
 
 
+class RandomizedMaskedAwareGrayscaleAdder:
+    def __init__(self, prob: float, min_radius: int = 40, max_radius: int = 60):
+        self.prob = prob
+        self.min_radius = min_radius
+        self.max_radius = max_radius
+        assert 0 <= prob <= 1, "Probability must be between 0 and 1"
+
+    def __call__(self, bgrm: np.ndarray) -> np.ndarray:
+        bgr = bgrm[:, :, :3]
+        if np.random.rand() > self.prob:
+            return bgr
+
+        mask = bgrm[:, :, 3]
+        mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=1)
+        candidates = np.argwhere(mask > 0)
+        if len(candidates) == 0:
+            return bgr
+
+        center = tuple(candidates[np.random.randint(len(candidates))])[::-1]
+        radius = np.random.randint(self.min_radius, self.max_radius + 1)
+        gs = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        gs = np.repeat(gs[:, :, np.newaxis], 3, axis=-1)
+        comb_mask = np.zeros_like(gs, dtype=np.float32)
+        comb_mask = cv2.circle(comb_mask, center, radius, (1, 1, 1), -1)  # type: ignore
+        comb_mask = cv2.GaussianBlur(comb_mask, (31, 31), 15)
+        combined = comb_mask * gs + (1 - comb_mask) * bgr
+        combined = combined.clip(0, 255).astype(np.uint8)
+        return combined
+
+
 class RadnomizedGaussianBlur:
     def __init__(self, min_sigma: float, max_sigma: float):
         self.min_sigma = min_sigma

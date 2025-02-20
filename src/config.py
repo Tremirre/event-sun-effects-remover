@@ -31,6 +31,7 @@ class Config:
     progressive_masking: bool = False
     mask_blur_factor: int = 0
     sun_aug_prob: float = 0
+    grayscale_patch_prob: float = 0
     run_tags: str = "default"
     save: bool = False
     full_pred: bool = False
@@ -122,6 +123,12 @@ class Config:
             type=float,
             default=0,
             help="Probability of applying SUN Augmentation",
+        )
+        parser.add_argument(
+            "--grayscale-patch-prob",
+            type=float,
+            default=0,
+            help="Probability of applying Grayscale Patch Augmentation",
         )
         parser.add_argument(
             "--img-glob",

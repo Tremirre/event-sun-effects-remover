@@ -34,6 +34,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         masker: Masker,
         bgr_transform: None | Transform = None,
         event_transform: None | Transform = None,
+        masked_bgr_transform: None | Transform = None,
         separate_event_channel: bool = True,
         mask_progression: bool = False,
         blur_factor: int = 0,
@@ -43,6 +44,7 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.masker = masker
         self.bgr_transform = bgr_transform
         self.event_transform = event_transform
+        self.masked_bgr_transform = masked_bgr_transform
         self.separate_event_channel = separate_event_channel
         self.mask_progression = mask_progression
         self._retrieve_count = 0
@@ -101,6 +103,11 @@ class BGREMDataset(torch.utils.data.Dataset):
             event = np.dstack([event, mask])
             event = self.event_transform(event)
             event = event[:, :, 0:1]
+
+        if self.masked_bgr_transform:
+            bgrm = np.dstack([bgr, mask])
+            bgrm = self.masked_bgr_transform(bgrm)
+            bgr = bgrm[:, :, :3]
 
         mask = mask.astype(np.float32) / 255.0
         if self.blur_factor > 0:

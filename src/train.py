@@ -41,6 +41,7 @@ if __name__ == "__main__":
         mask_blur_factor=config.mask_blur_factor,
         yuv_interpolation=config.yuv_interpolation,
         sun_aug_prob=config.sun_aug_prob,
+        gs_patch_prob=config.grayscale_patch_prob,
     )
     run_logger = config.get_logger()
     profiler = config.get_profiler()

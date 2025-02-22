@@ -93,6 +93,7 @@ class BGREMDataset(torch.utils.data.Dataset):
 
         assert img.shape[2] == 5, "Expected 5 channels"
         bgr = img[:, :, :3]
+        target = bgr.copy()
         event = img[:, :, 3:4]
         event_mask = img[:, :, 4]
         if self.blur_factor > 0:
@@ -114,7 +115,6 @@ class BGREMDataset(torch.utils.data.Dataset):
             # blur mask
             mask = cv2.GaussianBlur(mask, self.blur_kernel, self.blur_factor)
 
-        target = bgr.copy()
         mask = np.expand_dims(mask, axis=-1)
 
         mask_expanded = np.repeat(mask, 3, axis=-1)

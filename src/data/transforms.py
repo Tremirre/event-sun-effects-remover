@@ -85,7 +85,7 @@ class RandomizedMaskAwareGrayscaleAdder:
         if len(candidates) == 0:
             return bgrm
 
-        logger.info("Adding grayscale")
+        logger.debug("Adding grayscale")
         center = tuple(candidates[np.random.randint(len(candidates))])[::-1]
         radius = np.random.randint(self.min_radius, self.max_radius + 1)
         gs = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
@@ -110,7 +110,7 @@ class RandomizedMaskAwareGlareAdder:
         if np.random.rand() > self.prob:
             return bgrm
 
-        logger.info("Adding glare")
+        logger.debug("Adding glare")
         mask = bgrm[:, :, 3]
         original_mask = mask.copy()
         expansion = np.random.randint(self.min_expand, self.max_expand + 1)

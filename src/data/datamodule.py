@@ -69,6 +69,7 @@ class EventDataModule(pl.LightningDataModule):
         mask_blur_factor: int = 0,
         sun_aug_prob: float = 0,
         gs_patch_prob: float = 0,
+        glare_aug_prob: float = 0,
         train_img_glob: str = DATA_PATTERN,
     ) -> None:
         super().__init__()
@@ -87,6 +88,7 @@ class EventDataModule(pl.LightningDataModule):
         self.mask_blur_factor = mask_blur_factor
         self.sun_aug_prob = sun_aug_prob
         self.gs_patch_prob = gs_patch_prob
+        self.glare_aug_prob = glare_aug_prob
         self.sep_event_channel = sep_event_channel
         np.random.shuffle(self.img_paths)  # type: ignore
         n = len(self.img_paths)
@@ -134,7 +136,8 @@ class EventDataModule(pl.LightningDataModule):
                 ),
                 masked_bgr_transform=T.Compose(
                     [
-                        transforms.RandomizedMaskedAwareGrayscaleAdder(
+                        transforms.RandomizedMaskAwareGlareAdder(self.glare_aug_prob),
+                        transforms.RandomizedMaskAwareGrayscaleAdder(
                             self.gs_patch_prob
                         ),
                     ]

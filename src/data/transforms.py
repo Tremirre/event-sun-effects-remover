@@ -1,7 +1,11 @@
+import logging
+
 import cv2
 import numpy as np
 
 from . import mask
+
+logger = logging.getLogger(__name__)
 
 
 class RandomizedBrightnessScaler:
@@ -62,7 +66,7 @@ class RandomizedSunAdder:
         return img_gs[:, :, np.newaxis]
 
 
-class RandomizedMaskedAwareGrayscaleAdder:
+class RandomizedMaskAwareGrayscaleAdder:
     def __init__(self, prob: float, min_radius: int = 40, max_radius: int = 60):
         self.prob = prob
         self.min_radius = min_radius
@@ -72,14 +76,16 @@ class RandomizedMaskedAwareGrayscaleAdder:
     def __call__(self, bgrm: np.ndarray) -> np.ndarray:
         bgr = bgrm[:, :, :3]
         if np.random.rand() > self.prob:
-            return bgr
+            return bgrm
 
         mask = bgrm[:, :, 3]
+        original_mask = mask.copy()
         mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=1)
         candidates = np.argwhere(mask > 0)
         if len(candidates) == 0:
-            return bgr
+            return bgrm
 
+        logger.info("Adding grayscale")
         center = tuple(candidates[np.random.randint(len(candidates))])[::-1]
         radius = np.random.randint(self.min_radius, self.max_radius + 1)
         gs = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
@@ -89,7 +95,33 @@ class RandomizedMaskedAwareGrayscaleAdder:
         comb_mask = cv2.GaussianBlur(comb_mask, (31, 31), 15)
         combined = comb_mask * gs + (1 - comb_mask) * bgr
         combined = combined.clip(0, 255).astype(np.uint8)
+        combined = np.concatenate([combined, original_mask[:, :, np.newaxis]], axis=-1)
         return combined
+
+
+class RandomizedMaskAwareGlareAdder:
+    def __init__(self, prob: float, min_expand: int = 1, max_expand: int = 5) -> None:
+        self.prob = prob
+        self.min_expand = min_expand
+        self.max_expand = max_expand
+
+    def __call__(self, bgrm: np.ndarray) -> np.ndarray:
+        bgr = bgrm[:, :, :3]
+        if np.random.rand() > self.prob:
+            return bgrm
+
+        logger.info("Adding glare")
+        mask = bgrm[:, :, 3]
+        original_mask = mask.copy()
+        expansion = np.random.randint(self.min_expand, self.max_expand + 1)
+        mask = cv2.dilate(mask, np.ones((3, 3), np.uint8), iterations=expansion)
+        mask = cv2.GaussianBlur(mask, (51, 51), 25)
+        mask = np.repeat(mask[:, :, np.newaxis], 3, axis=-1)
+        overlit_bgr = cv2.add(bgr, mask)
+        overlit_bgrm = np.concatenate(
+            [overlit_bgr, original_mask[:, :, np.newaxis]], axis=-1
+        )
+        return overlit_bgrm
 
 
 class RadnomizedGaussianBlur:
@@ -159,4 +191,6 @@ class DiffIntensityMasker:
         return diff_mask
 
     def progress(self) -> None:
+        pass
+        pass
         pass

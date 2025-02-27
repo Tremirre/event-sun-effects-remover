@@ -8,10 +8,9 @@ import torch
 from pytorch_lightning import loggers
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
-from src import const, utils
+from src import utils
 from src.callbacks import image_loggers
 from src.config import Config
-from src.data import datamodule
 
 RUN_IDX = np.random.randint(0, 2**31)
 
@@ -28,22 +27,7 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     config = Config.from_args()
 
-    dm = datamodule.EventDataModule(
-        const.TRAIN_VAL_TEST_DIR,
-        const.REF_DIR,
-        batch_size=config.batch_size,
-        frac_used=config.frac_used,
-        num_workers=config.num_workers,
-        ref_threshold=config.diff_intensity,
-        sep_event_channel=config.event_channel,
-        train_img_glob=config.img_glob,
-        progressive_masking=config.progressive_masking,
-        mask_blur_factor=config.mask_blur_factor,
-        yuv_interpolation=config.yuv_interpolation,
-        sun_aug_prob=config.sun_aug_prob,
-        gs_patch_prob=config.grayscale_patch_prob,
-        glare_aug_prob=config.glare_aug_prob,
-    )
+    dm = config.get_data_module()
     run_logger = config.get_logger()
     profiler = config.get_profiler()
     callbacks: list[pl.Callback] = [image_loggers.ValBatchImageLogger()]

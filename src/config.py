@@ -7,6 +7,8 @@ import torch
 from pytorch_lightning import loggers, profilers
 from torch.profiler import tensorboard_trace_handler
 
+from src import const
+from src.data import datamodule
 from src.model import modules
 
 
@@ -222,3 +224,21 @@ class Config:
                 weights = weights["state_dict"]
             model.load_state_dict(weights)
         return model
+
+    def get_data_module(self) -> datamodule.EventDataModule:
+        return datamodule.EventDataModule(
+            data_dir=const.TRAIN_VAL_TEST_DIR,
+            ref_dir=const.REF_DIR,
+            batch_size=self.batch_size,
+            frac_used=self.frac_used,
+            num_workers=self.num_workers,
+            ref_threshold=self.diff_intensity,
+            sep_event_channel=self.event_channel,
+            train_img_glob=self.img_glob,
+            progressive_masking=self.progressive_masking,
+            mask_blur_factor=self.mask_blur_factor,
+            yuv_interpolation=self.yuv_interpolation,
+            sun_aug_prob=self.sun_aug_prob,
+            gs_patch_prob=self.grayscale_patch_prob,
+            glare_aug_prob=self.glare_aug_prob,
+        )

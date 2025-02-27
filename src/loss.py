@@ -91,7 +91,9 @@ class VGGLoss(nn.Module):
         self.normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
         )
-        self.model = self.models[model](pretrained=True).features[: layer + 1]
+        self.model = self.models[model](weights=models.VGG16_Weights.DEFAULT).features[
+            : layer + 1
+        ]
         self.model.eval()
         self.model.requires_grad_(False)
 

@@ -90,6 +90,7 @@ class UNet(nn.Module):
         in_channels: int,
         kernel_size: int = 3,
         with_fft: bool = False,
+        out_channels: int = const.CHANNELS_OUT,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -120,7 +121,7 @@ class UNet(nn.Module):
                 for i in range(n_blocks - 1, 0, -1)
             ]
         )
-        self.final = nn.Conv2d(features[1], const.CHANNELS_OUT, 1)
+        self.final = nn.Conv2d(features[1], out_channels, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_skips = []

@@ -121,3 +121,24 @@ class BGREMDataset(torch.utils.data.Dataset):
         else:
             bgrem = torch.concatenate([bgr, mask], dim=0)
         return bgrem, target
+
+
+class BGRArtifcatDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        img_paths: list[pathlib.Path],
+        transform: Transform,
+    ) -> None:
+        self.img_paths = img_paths
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.img_paths)
+
+    def __getitem__(self, idx: int) -> torch.Tensor:
+        img = np.load(self.img_paths[idx])
+        if img.shape[2] > 3:
+            img = img[:, :, :3]
+
+        assert img.shape[2] == 3, "Expected 5 channels"
+        return self.transform(img)

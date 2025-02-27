@@ -7,8 +7,6 @@ import numpy as np
 import torch
 import torch.utils.data
 
-from src import const
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +45,6 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.masked_bgr_transform = masked_bgr_transform
         self.separate_event_channel = separate_event_channel
         self.mask_progression = mask_progression
-        self._retrieve_count = 0
         self.blur_factor = blur_factor
         self.yuv_interpolation = yuv_interpolation
         self.blur_kernel = (2 * blur_factor + 1, 2 * blur_factor + 1)
@@ -59,15 +56,6 @@ class BGREMDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         return len(self.img_paths)
-
-    def on_retrieve(self) -> None:
-        if not self.mask_progression:
-            return
-        self._retrieve_count += 1
-        if self._retrieve_count % (const.MASK_GROWTH_EVERY_N_EPOCHS * len(self)) == 0:
-            logger.info("Progressing mask")
-            self.masker.progress()
-            self._retrieve_count = 0
 
     def mask_out_image(
         self, mask_expanded: np.ndarray, bgr: np.ndarray, event_expanded: np.ndarray
@@ -86,7 +74,6 @@ class BGREMDataset(torch.utils.data.Dataset):
         return cv2.cvtColor((yuv * 255.0).astype(np.uint8), cv2.COLOR_YUV2BGR)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        self.on_retrieve()
         img = np.load(self.img_paths[idx])
         if img.shape[2] == 4:
             img = np.concatenate([img, np.ones_like(img[:, :, :1]) * 255], axis=-1)

@@ -30,7 +30,6 @@ class Config:
     profile: bool = False
     log_tensorboard: bool = False
     yuv_interpolation: bool = False
-    progressive_masking: bool = False
     mask_blur_factor: int = 0
     sun_aug_prob: float = 0
     grayscale_patch_prob: float = 0
@@ -109,11 +108,6 @@ class Config:
             "--yuv-interpolation",
             action="store_true",
             help="Interpolate Y channel with event data (only if event channel is not separate)",
-        )
-        parser.add_argument(
-            "--progressive-masking",
-            action="store_true",
-            help="Progressively increase mask complexity",
         )
         parser.add_argument(
             "--mask-blur-factor",
@@ -235,7 +229,6 @@ class Config:
             ref_threshold=self.diff_intensity,
             sep_event_channel=self.event_channel,
             train_img_glob=self.img_glob,
-            progressive_masking=self.progressive_masking,
             mask_blur_factor=self.mask_blur_factor,
             yuv_interpolation=self.yuv_interpolation,
             sun_aug_prob=self.sun_aug_prob,

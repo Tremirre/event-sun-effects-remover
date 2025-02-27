@@ -192,5 +192,3 @@ class DiffIntensityMasker:
 
     def progress(self) -> None:
         pass
-        pass
-        pass

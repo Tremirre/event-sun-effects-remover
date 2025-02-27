@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     config = Config.from_args()
-
     dm = config.get_data_module()
     run_logger = config.get_logger()
     profiler = config.get_profiler()

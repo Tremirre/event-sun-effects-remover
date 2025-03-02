@@ -13,7 +13,24 @@ from .unet import HalfUNetDiscriminator, UNet
 logger = logging.getLogger(__name__)
 
 
-class BaseInpaintingModule(pl.LightningModule):
+class BaseModule(pl.LightningModule):
+    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+        raise NotImplementedError
+
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self._shared_step(batch, "train")
+
+    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self._shared_step(batch, "val")
+
+    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self._shared_step(batch, "test")
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-3)  # type: ignore
+
+
+class BaseInpaintingModule(BaseModule):
     def __init__(self) -> None:
         super().__init__()
         self.tv_loss = TVLoss(2)
@@ -22,7 +39,6 @@ class BaseInpaintingModule(pl.LightningModule):
     def loss(
         self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
     ) -> torch.Tensor:
-        # mae + ssim
         mae = F.l1_loss(y_hat, y)
         ssim = 1 - msssim.ms_ssim(y_hat, y)
         vgg_loss = self.vgg_loss(y_hat, y)
@@ -53,17 +69,39 @@ class BaseInpaintingModule(pl.LightningModule):
             "pred": y_hat,
         }
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self._shared_step(batch, "train")
 
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self._shared_step(batch, "val")
+class BaseDetectionModule(pl.LightningModule):
+    def loss(
+        self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
+    ) -> torch.Tensor:
+        mse = F.mse_loss(y_hat, y)
+        if stage:
+            self.log(f"{stage}_mse", mse, on_epoch=True)
+        return mse
 
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self._shared_step(batch, "test")
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x
 
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)  # type: ignore
+    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+        x, y = batch
+        y_hat = self(x)
+        loss = self.loss(y_hat, y, stage=stage)
+        self.log(f"{stage}_loss", loss)
+        return {
+            "loss": loss,
+            "pred": y_hat,
+        }
+
+
+class UNetDetectionModule(BaseDetectionModule):
+    def __init__(self, **kwargs) -> None:
+        super().__init__()
+        self.unet = UNet(**kwargs, out_channels=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.unet(x)
+        x = torch.sigmoid(x)
+        return x
 
 
 class NoOp(BaseInpaintingModule):
@@ -254,11 +292,15 @@ class GANInpainter(BaseInpaintingModule):
         return [g_opt, d_opt], []
 
 
-NAMES = {
+INPAINT_NAMES = {
     "unet": UNetModule,
     "unet_infill_only": UNetInfillOnlyModule,
     "unet_dual": UNetDualWithFFT,
     "unet_two_stage": UNetTwoStage,
     "gan": GANInpainter,
     "noop": NoOp,
+}
+
+DETECTION_NAMES = {
+    "unet": UNetDetectionModule,
 }

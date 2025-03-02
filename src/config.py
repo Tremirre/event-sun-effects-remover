@@ -204,7 +204,7 @@ class Config:
         return None
 
     def get_model(self) -> pl.LightningModule:
-        model = modules.NAMES[self.module_type](
+        model = modules.INPAINT_NAMES[self.module_type](
             n_blocks=self.unet_blocks,
             block_depth=self.unet_depth,
             kernel_size=self.unet_kernel,

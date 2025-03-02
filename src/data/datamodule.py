@@ -127,6 +127,7 @@ class EventDataModule(BaseDataModule):
         self.gs_patch_prob = gs_patch_prob
         self.glare_aug_prob = glare_aug_prob
         self.sep_event_channel = sep_event_channel
+        logger.info("Initialized Event Data module")
 
     def setup(self, stage: str) -> None:
         val_files = self.img_paths[: self.val_n]
@@ -217,6 +218,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
         self.p_flare = p_flare
         self.p_sun = p_sun
         self.p_glare = p_glare
+        logger.info("Initialized Artifact Detection Data module")
 
     def get_augmenter(
         self, fix_by_idx: bool = False

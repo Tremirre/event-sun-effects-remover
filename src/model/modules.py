@@ -70,7 +70,7 @@ class BaseInpaintingModule(BaseModule):
         }
 
 
-class BaseDetectionModule(pl.LightningModule):
+class BaseDetectionModule(BaseModule):
     def loss(
         self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
     ) -> torch.Tensor:

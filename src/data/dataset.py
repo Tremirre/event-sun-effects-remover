@@ -25,6 +25,14 @@ class Transform(typing.Protocol):
     ) -> torch.Tensor: ...
 
 
+class LightAugmenter(typing.Protocol):
+    def __call__(
+        self,
+        img: np.ndarray,
+        idx: int,
+    ) -> np.ndarray: ...
+
+
 class BGREMDataset(torch.utils.data.Dataset):
     def __init__(
         self,
@@ -128,17 +136,27 @@ class BGRArtifcatDataset(torch.utils.data.Dataset):
         self,
         img_paths: list[pathlib.Path],
         transform: Transform,
+        augmenter: LightAugmenter,
     ) -> None:
         self.img_paths = img_paths
         self.transform = transform
+        self.augmenter = augmenter
 
     def __len__(self) -> int:
         return len(self.img_paths)
 
-    def __getitem__(self, idx: int) -> torch.Tensor:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         img = np.load(self.img_paths[idx])
         if img.shape[2] > 3:
             img = img[:, :, :3]
 
-        assert img.shape[2] == 3, "Expected 5 channels"
-        return self.transform(img)
+        assert img.shape[2] == 3, "Expected 3 channels"
+        none_mask = np.zeros_like(img[:, :, 0])
+        img = np.dstack([img, none_mask])
+        img = self.augmenter(img, idx)
+        bgr = img[:, :, :3]
+        target = img[:, :, 3]
+
+        bgr = self.transform(bgr)
+        target = self.transform(target)
+        return bgr, target

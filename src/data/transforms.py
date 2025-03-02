@@ -209,9 +209,6 @@ class BaseLightArtifactAugmenter:
     def __call__(self, img: np.ndarray) -> np.ndarray:
         aug_map = self.generate_map(img[:, :, :3].shape)
         img[:, :, :3] = cv2.add(img[:, :, :3], aug_map)  # type: ignore
-        if img.shape[-1] == 3:
-            none_mask = np.zeros_like(img[:, :, 0])
-            img = np.dstack([img, none_mask])
         aug_map = cv2.cvtColor(aug_map, cv2.COLOR_BGR2GRAY)
         img[:, :, 3] = cv2.add(img[:, :, 3], aug_map)
         return img
@@ -399,7 +396,6 @@ class CompositeLightArtifactAugmenter:
         self,
         augmenters: list[BaseLightArtifactAugmenter],
         probs: list[float],
-        prob_no_aug: float,
         fix_by_idx: bool = False,
     ):
         assert len(augmenters) == len(
@@ -407,7 +403,6 @@ class CompositeLightArtifactAugmenter:
         ), "Augmenters and probs must have same length"
         self.augmenters = augmenters
         self.probs = probs
-        self.prob_no_aug = prob_no_aug
         self.fix_by_idx = fix_by_idx
         self.cache = {}
 
@@ -415,10 +410,10 @@ class CompositeLightArtifactAugmenter:
         if self.fix_by_idx and idx in self.cache:
             return self.cache[idx]
 
-        if np.random.rand() < self.prob_no_aug:
-            return img
-
         for augmenter, prob in zip(self.augmenters, self.probs, strict=True):
             if np.random.rand() < prob:
                 img = augmenter(img)
+
+        if self.fix_by_idx:
+            self.cache[idx] = img
         return img

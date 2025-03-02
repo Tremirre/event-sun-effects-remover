@@ -202,3 +202,81 @@ class EventDataModule(BaseDataModule):
                 blur_factor=self.mask_blur_factor,
                 yuv_interpolation=self.yuv_interpolation,
             )
+
+
+class ArtifactDetectionDataModule(BaseDataModule):
+    def __init__(
+        self,
+        p_flare: float,
+        p_sun: float,
+        p_glare: float,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.p_flare = p_flare
+        self.p_sun = p_sun
+        self.p_glare = p_glare
+
+    def get_augmenter(
+        self, fix_by_idx: bool = False
+    ) -> transforms.CompositeLightArtifactAugmenter:
+        return transforms.CompositeLightArtifactAugmenter(
+            augmenters=[
+                transforms.LensFlareAdder(1, 10, 5, 100, 0.25, 0.8, 0.2),
+                transforms.VeilingGlareAdder(10, 150, 10, 150, 0.6),
+                transforms.SunAdder(10, 25, 0.2, 0.5, 0.5),
+            ],
+            probs=[self.p_flare, self.p_glare, self.p_sun],
+            fix_by_idx=fix_by_idx,
+        )
+
+    def setup(self, stage: str) -> None:
+        val_files = self.img_paths[: self.val_n]
+        test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
+        train_files = self.img_paths[self.val_n + self.test_n :]
+        train_files = [p for p in train_files if p.match(self.train_img_glob)]
+        assert len(train_files) > 0, "No training files found"
+
+        logger.info(f"Setting up datasets for stage: {stage}")
+        if stage == "fit" or stage is None:
+            self.train_dataset = dataset.BGRArtifcatDataset(
+                train_files,
+                transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+                augmenter=self.get_augmenter(fix_by_idx=False),
+            )
+            self.val_dataset = dataset.BGRArtifcatDataset(
+                val_files,
+                transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+                augmenter=self.get_augmenter(fix_by_idx=True),
+            )
+        if stage == "test" or stage is None:
+            self.test_dataset = dataset.BGRArtifcatDataset(
+                test_files,
+                transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+                augmenter=self.get_augmenter(fix_by_idx=True),
+            )
+        if stage == "ref" or stage is None:
+            self.ref_dataset = dataset.BGRArtifcatDataset(
+                self.ref_paths,
+                transform=T.Compose(
+                    [
+                        T.ToTensor(),
+                    ]
+                ),
+                augmenter=transforms.CompositeLightArtifactAugmenter(
+                    augmenters=[],
+                    probs=[],
+                ),
+            )

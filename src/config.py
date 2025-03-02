@@ -41,6 +41,12 @@ class Config:
     data_dir: pathlib.Path | None = None
     output: pathlib.Path | None = None
 
+    # === artifact detector params ===
+    artifact_detector: bool = False
+    p_sun: float = 0.5
+    p_glare: float = 0.5
+    p_flare: float = 0.5
+
     @classmethod
     def from_args(cls):
         parser = argparse.ArgumentParser()
@@ -159,6 +165,29 @@ class Config:
             action="store_true",
             help="Output full prediction",
         )
+        parser.add_argument(
+            "--artifact-detector",
+            action="store_true",
+            help="Use artifact detector",
+        )
+        parser.add_argument(
+            "--p-sun",
+            type=float,
+            default=0.5,
+            help="Probability of a sun augmentation in artifact detector",
+        )
+        parser.add_argument(
+            "--p-glare",
+            type=float,
+            default=0.5,
+            help="Probability of a glare augmentation in artifact detector",
+        )
+        parser.add_argument(
+            "--p-flare",
+            type=float,
+            default=0.5,
+            help="Probability of a flare augmentation in artifact detector",
+        )
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
@@ -204,12 +233,18 @@ class Config:
         return None
 
     def get_model(self) -> pl.LightningModule:
-        model = modules.INPAINT_NAMES[self.module_type](
+        selection_dict = modules.INPAINT_NAMES
+        in_channels = 5 if self.event_channel else 4
+        if self.artifact_detector:
+            selection_dict = modules.DETECTION_NAMES
+            in_channels = 3
+
+        model = selection_dict[self.module_type](
             n_blocks=self.unet_blocks,
             block_depth=self.unet_depth,
             kernel_size=self.unet_kernel,
             with_fft=self.unet_fft,
-            in_channels=5 if self.event_channel else 4,
+            in_channels=in_channels,
             gan_adv_weight=self.gan_adv_weight,
         )
         if self.weights:
@@ -219,8 +254,12 @@ class Config:
             model.load_state_dict(weights)
         return model
 
-    def get_data_module(self) -> datamodule.EventDataModule:
-        return datamodule.EventDataModule(
+    def get_data_module(self) -> datamodule.BaseDataModule:
+        data_module = datamodule.EventDataModule
+        if self.artifact_detector:
+            data_module = datamodule.ArtifactDetectionDataModule
+
+        return data_module(
             data_dir=const.TRAIN_VAL_TEST_DIR,
             ref_dir=const.REF_DIR,
             batch_size=self.batch_size,
@@ -234,4 +273,7 @@ class Config:
             sun_aug_prob=self.sun_aug_prob,
             gs_patch_prob=self.grayscale_patch_prob,
             glare_aug_prob=self.glare_aug_prob,
+            p_sun=self.p_sun,
+            p_glare=self.p_glare,
+            p_flare=self.p_flare,
         )

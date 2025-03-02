@@ -26,6 +26,7 @@ class BaseDataModule(pl.LightningDataModule):
         num_workers: int = 0,
         batch_size: int = 32,
         frac_used: float = 1,
+        **kwargs,
     ) -> None:
         super().__init__()
         self.data_dir = data_dir

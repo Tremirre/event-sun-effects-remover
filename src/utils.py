@@ -28,6 +28,11 @@ def log_image_batch(
     tag: str,
 ):
     x_bgr = x[:, :3]
+    if y_hat.shape[1] == 1:
+        # overlay mask on top of image
+        y_hat = torch.cat([y_hat, y_hat, y_hat], dim=1)
+    if y is not None and y.shape[1] == 1:
+        y = torch.cat([y, y, y], dim=1)
     if x.shape[1] == 5:
         x_event = x[:, 3:4]
         x_mask = x[:, 4:5]

@@ -354,7 +354,7 @@ class SunAdder(BaseLightArtifactAugmenter):
                 pos[0] + int(ray_length * np.cos(angle)),
                 pos[1] + int(ray_length * np.sin(angle)),
             )
-            cv2.line(ray_map, pos, ray_end, color, np.random.randint(3, 8))
+            cv2.line(ray_map, pos, ray_end, color, np.random.randint(1, 5))
 
         ray_map = blur(ray_map, 5)
         strong_ray_radius = np.random.randint(50, 200)

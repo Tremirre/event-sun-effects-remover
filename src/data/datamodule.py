@@ -226,7 +226,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
         return transforms.CompositeLightArtifactAugmenter(
             augmenters=[
                 transforms.LensFlareAdder(1, 10, 5, 100, 0.25, 0.8, 0.2),
-                transforms.VeilingGlareAdder(10, 150, 10, 150, 0.6),
+                transforms.VeilingGlareAdder(10, 250, 10, 150, 0.3),
                 transforms.SunAdder(10, 25, 0.2, 0.5, 0.5),
             ],
             probs=[self.p_flare, self.p_glare, self.p_sun],

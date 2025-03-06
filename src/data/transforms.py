@@ -335,18 +335,20 @@ class SunAdder(BaseLightArtifactAugmenter):
         min_outer_strength: float,
         max_outer_strength: float,
         p_rays: float,
+        p_outer: float,
     ):
         self.min_size = min_size
         self.max_size = max_size
         self.min_outer_strength = min_outer_strength
         self.max_outer_strength = max_outer_strength
         self.p_rays = p_rays
+        self.p_outer = p_outer
 
     def _add_rays(
         self, img: np.ndarray, pos: tuple[int, int], color: tuple[int, int, int]
     ) -> np.ndarray:
         ray_map = np.zeros_like(img)
-        num_rays = np.random.randint(5, 30)
+        num_rays = np.random.randint(2, 30)
         for _ in range(num_rays):
             angle = np.random.uniform(0, 2 * np.pi)
             ray_length = np.random.randint(50, 250)
@@ -372,12 +374,13 @@ class SunAdder(BaseLightArtifactAugmenter):
         outer_radius = np.random.randint(10 * size, 16 * size)
         inner_radius = np.random.randint(2 * size, 4 * size)
         color = rand_light_color()
-        cv2.circle(s_map, pos, outer_radius, color, -1)
-        outer_strength = np.random.uniform(
-            self.min_outer_strength, self.max_outer_strength
-        )
-        s_map = (s_map * outer_strength).astype(np.uint8)
-        s_map = blur(s_map, 50)
+        if np.random.rand() < self.p_outer:
+            cv2.circle(s_map, pos, outer_radius, color, -1)
+            outer_strength = np.random.uniform(
+                self.min_outer_strength, self.max_outer_strength
+            )
+            s_map = (s_map * outer_strength).astype(np.uint8)
+            s_map = blur(s_map, 50)
 
         cv2.circle(s_map, pos, inner_radius, color, -1)
         s_map = blur(s_map, 20)
@@ -385,7 +388,7 @@ class SunAdder(BaseLightArtifactAugmenter):
         cv2.circle(s_map, pos, size, (255, 255, 255), -1)
 
         if np.random.rand() < self.p_rays:
-            s_map = self._add_rays(s_map, pos, color)  # type: ignore
+            s_map = self._add_rays(s_map, pos, color)
         s_map = blur(s_map, 5)
 
         return s_map

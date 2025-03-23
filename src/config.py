@@ -47,6 +47,7 @@ class Config:
     p_glare: float = 0.5
     p_flare: float = 0.5
     p_hq_flare: float = 0.5
+    target_binarization: bool = False
 
     @classmethod
     def from_args(cls):
@@ -195,6 +196,11 @@ class Config:
             default=0.5,
             help="Probability of a high quality flare augmentation in artifact detector",
         )
+        parser.add_argument(
+            "--target-binarization",
+            action="store_true",
+            help="Use target binarization in artifact detector",
+        )
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
@@ -284,4 +290,5 @@ class Config:
             p_glare=self.p_glare,
             p_flare=self.p_flare,
             p_hq_flare=self.p_hq_flare,
+            target_binarization=self.target_binarization,
         )

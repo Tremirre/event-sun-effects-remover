@@ -215,6 +215,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
         p_glare: float,
         p_hq_flare: float,
         test_dir: pathlib.Path = const.ARTIFACT_DET_TEST_DIR,
+        target_binarization: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -230,6 +231,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
         self.p_sun = p_sun
         self.p_glare = p_glare
         self.p_hq_flare = p_hq_flare
+        self.target_binarization = target_binarization
         logger.info("Initialized Artifact Detection Data module")
 
     def get_augmenter(
@@ -264,6 +266,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
                     ]
                 ),
                 augmenter=self.get_augmenter(fix_by_idx=False),
+                binarize=self.target_binarization,
             )
             self.val_dataset = dataset.BGRArtifcatDataset(
                 val_files,
@@ -273,6 +276,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
                     ]
                 ),
                 augmenter=self.get_augmenter(fix_by_idx=True),
+                binarize=self.target_binarization,
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGRArtifcatDataset(

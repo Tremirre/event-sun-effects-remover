@@ -137,12 +137,14 @@ class BGRArtifcatDataset(torch.utils.data.Dataset):
         img_paths: list[pathlib.Path],
         transform: Transform,
         augmenter: LightAugmenter,
+        binarize: bool = False,
         test_mode: bool = False,
     ) -> None:
         self.img_paths = img_paths
         self.transform = transform
         self.augmenter = augmenter
         self.test_mode = test_mode
+        self.binarize = binarize
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -166,6 +168,8 @@ class BGRArtifcatDataset(torch.utils.data.Dataset):
         img = self.augmenter(img, idx)
         bgr = img[:, :, :3]
         target = img[:, :, 3]
+        if self.binarize:
+            target = (target > 0).astype(np.uint8) * 255
 
         bgr = self.transform(bgr)
         target = self.transform(target)

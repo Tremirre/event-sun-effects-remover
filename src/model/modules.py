@@ -1,9 +1,11 @@
 import logging
 
+import neptune
 import pytorch_lightning as pl
 import pytorch_msssim as msssim
 import torch
 import torch.nn.functional as F
+import torchmetrics
 
 from src import const
 
@@ -71,6 +73,13 @@ class BaseInpaintingModule(BaseModule):
 
 
 class BaseDetectionModule(BaseModule):
+    _BIN_THRESH = 0.1
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.test_preds = []
+        self.test_labels = []
+
     def loss(
         self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
     ) -> torch.Tensor:
@@ -91,6 +100,61 @@ class BaseDetectionModule(BaseModule):
             "loss": loss,
             "pred": y_hat,
         }
+
+    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        _, y = batch
+        res = super().test_step(batch, batch_idx)
+        y_hat = res["pred"]
+        y_bin = (y > 0).float()
+        y_hat_bin = (y_hat > 0).float()
+
+        tp = (y_bin * y_hat_bin).sum()
+        tn = ((1 - y_bin) * (1 - y_hat_bin)).sum()
+        fp = ((1 - y_bin) * y_hat_bin).sum()
+        fn = (y_bin * (1 - y_hat_bin)).sum()
+
+        accuracy = (tp + tn) / (tp + tn + fp + fn + 1e-6)
+        precision = tp / (tp + fp + 1e-6)
+        recall = tp / (tp + fn + 1e-6)
+        f1 = 2 * (precision * recall) / (precision + recall + 1e-6)
+
+        self.log(f"test_t{self._BIN_THRESH:.0%}_accuracy", accuracy)
+        self.log(f"test_t{self._BIN_THRESH:.0%}_precision", precision)
+        self.log(f"test_t{self._BIN_THRESH:.0%}recall", recall)
+        self.log(f"test_t{self._BIN_THRESH:.0%}f1", f1)
+
+        self.test_preds.append(y_hat)
+        self.test_labels.append(y)
+
+        return res
+
+    def on_test_epoch_end(self) -> None:
+        self.test_preds = torch.cat(self.test_preds)
+        self.test_labels = torch.cat(self.test_labels)
+        y_bin = (self.test_labels > 0).int()
+        roc = torchmetrics.ROC(task="binary")
+        fpr, tpr, thresholds = roc(self.test_preds, y_bin)
+        roc_auc = torchmetrics.functional.auroc(self.test_preds, y_bin, task="binary")
+
+        # ROC Curve
+        fig, ax = roc.plot()
+        if isinstance(self.logger, pl.loggers.NeptuneLogger):
+            self.logger.experiment["test_roc_curve"].upload(
+                neptune.types.File.as_image(fig)
+            )
+        else:
+            self.logger.experiment.add_figure(
+                "ROC Curve",
+                fig,
+            )
+
+        # ROC AUC
+        self.log("test_roc_auc", roc_auc)
+
+        # Best Threshold
+        idx = torch.argmax(tpr - fpr)
+        best_thresh = thresholds[idx]
+        self.log("test_best_threshold", best_thresh)
 
 
 class UNetDetectionModule(BaseDetectionModule):

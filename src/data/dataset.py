@@ -58,9 +58,9 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.blur_kernel = (2 * blur_factor + 1, 2 * blur_factor + 1)
 
         if self.yuv_interpolation:
-            assert (
-                not self.separate_event_channel
-            ), "Cannot interpolate YUV and have separate event channel"
+            assert not self.separate_event_channel, (
+                "Cannot interpolate YUV and have separate event channel"
+            )
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -137,16 +137,26 @@ class BGRArtifcatDataset(torch.utils.data.Dataset):
         img_paths: list[pathlib.Path],
         transform: Transform,
         augmenter: LightAugmenter,
+        test_mode: bool = False,
     ) -> None:
         self.img_paths = img_paths
         self.transform = transform
         self.augmenter = augmenter
+        self.test_mode = test_mode
 
     def __len__(self) -> int:
         return len(self.img_paths)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         img = np.load(self.img_paths[idx])
+        if self.test_mode:
+            assert img.shape[2] == 4, "Expected 4 channels for test mode"
+            bgr = img[:, :, :3]
+            target = img[:, :, 3]
+            bgr = self.transform(bgr)
+            target = self.transform(target)
+            return bgr, target
+
         if img.shape[2] > 3:
             img = img[:, :, :3]
 

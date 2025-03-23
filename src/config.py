@@ -46,6 +46,7 @@ class Config:
     p_sun: float = 0.5
     p_glare: float = 0.5
     p_flare: float = 0.5
+    p_hq_flare: float = 0.5
 
     @classmethod
     def from_args(cls):
@@ -189,7 +190,7 @@ class Config:
             help="Probability of a flare augmentation in artifact detector",
         )
         parser.add_argument(
-            "--p-hqflare",
+            "--p-hq-flare",
             type=float,
             default=0.5,
             help="Probability of a high quality flare augmentation in artifact detector",
@@ -282,5 +283,5 @@ class Config:
             p_sun=self.p_sun,
             p_glare=self.p_glare,
             p_flare=self.p_flare,
-            p_hqflare=self.p_hqflare,
+            p_hq_flare=self.p_hq_flare,
         )

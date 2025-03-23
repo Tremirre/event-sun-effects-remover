@@ -214,9 +214,18 @@ class ArtifactDetectionDataModule(BaseDataModule):
         p_sun: float,
         p_glare: float,
         p_hq_flare: float,
+        test_dir: pathlib.Path = const.ARTIFACT_DET_TEST_DIR,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
+        assert test_dir.exists(), f"Test directory {test_dir} does not exist"
+        self.test_dir = test_dir
+        self.test_files = list(test_dir.glob(DATA_PATTERN))
+        self.test_n = 0
+        logger.info(
+            "Using external test dataset with {} files".format(len(self.test_files))
+        )
+        assert len(self.test_files) > 0, "No test files found"
         self.p_flare = p_flare
         self.p_sun = p_sun
         self.p_glare = p_glare
@@ -241,7 +250,6 @@ class ArtifactDetectionDataModule(BaseDataModule):
 
     def setup(self, stage: str) -> None:
         val_files = self.img_paths[: self.val_n]
-        test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
         train_files = self.img_paths[self.val_n + self.test_n :]
         train_files = [p for p in train_files if p.match(self.train_img_glob)]
         assert len(train_files) > 0, "No training files found"
@@ -268,13 +276,17 @@ class ArtifactDetectionDataModule(BaseDataModule):
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGRArtifcatDataset(
-                test_files,
+                self.test_files,
                 transform=T.Compose(
                     [
                         T.ToTensor(),
                     ]
                 ),
-                augmenter=self.get_augmenter(fix_by_idx=True),
+                augmenter=transforms.CompositeLightArtifactAugmenter(
+                    augmenters=[],
+                    probs=[],
+                ),
+                test_mode=True,
             )
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGRArtifcatDataset(

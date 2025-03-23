@@ -1,4 +1,5 @@
 import logging
+import pathlib
 
 import cv2
 import numpy as np
@@ -394,6 +395,36 @@ class SunAdder(BaseLightArtifactAugmenter):
         return s_map
 
 
+class HQFlareBasedAugmenter(BaseLightArtifactAugmenter):
+    def __init__(self, flare_imgs: list[pathlib.Path]):
+        super().__init__()
+        self.flare_imgs = flare_imgs
+
+    def _get_flare(self, shape: tuple[int, int, int]) -> np.ndarray:
+        idx = np.random.randint(0, len(self.flare_imgs))
+        flare = cv2.imread(str(self.flare_imgs[idx]), cv2.IMREAD_UNCHANGED)
+        flare = cv2.resize(flare, (shape[1], shape[0]))
+        # TODO: maybe scale?
+
+        width, height = shape[1], shape[0]
+
+        dx, dy = (
+            np.random.randint(-width // 4, width // 4),
+            np.random.randint(-height // 4, height // 4),
+        )
+        translation_matrix = np.float32([[1, 0, dx], [0, 1, dy]])
+        flare = cv2.warpAffine(flare, translation_matrix, (width, height))
+
+        angle = np.random.randint(0, 360)
+        rot_matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1)
+        flare = cv2.warpAffine(flare, rot_matrix, (width, height))
+
+        return flare
+
+    def generate_map(self, shape):
+        return self._get_flare(shape)
+
+
 class CompositeLightArtifactAugmenter:
     def __init__(
         self,
@@ -401,9 +432,9 @@ class CompositeLightArtifactAugmenter:
         probs: list[float],
         fix_by_idx: bool = False,
     ):
-        assert len(augmenters) == len(
-            probs
-        ), "Augmenters and probs must have same length"
+        assert len(augmenters) == len(probs), (
+            "Augmenters and probs must have same length"
+        )
         self.augmenters = augmenters
         self.probs = probs
         self.fix_by_idx = fix_by_idx

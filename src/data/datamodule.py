@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 import torch.utils.data
 import torchvision.transforms as T
 
+from src import const
 from src.data import dataset, transforms
 
 logger = logging.getLogger(__name__)
@@ -212,12 +213,14 @@ class ArtifactDetectionDataModule(BaseDataModule):
         p_flare: float,
         p_sun: float,
         p_glare: float,
+        p_hq_flare: float,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.p_flare = p_flare
         self.p_sun = p_sun
         self.p_glare = p_glare
+        self.p_hq_flare = p_hq_flare
         logger.info("Initialized Artifact Detection Data module")
 
     def get_augmenter(
@@ -228,8 +231,11 @@ class ArtifactDetectionDataModule(BaseDataModule):
                 transforms.LensFlareAdder(1, 10, 5, 100, 0.25, 0.8, 0.2),
                 transforms.VeilingGlareAdder(10, 250, 10, 150, 0.3),
                 transforms.SunAdder(4, 25, 0.0, 0.5, 0.3, 0.8),
+                transforms.HQFlareBasedAugmenter(
+                    list(const.FLARES_DIR.glob("**/*.png"))
+                ),
             ],
-            probs=[self.p_flare, self.p_glare, self.p_sun],
+            probs=[self.p_flare, self.p_glare, self.p_sun, self.p_hq_flare],
             fix_by_idx=fix_by_idx,
         )
 

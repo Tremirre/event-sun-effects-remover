@@ -188,23 +188,29 @@ class Config:
             default=0.5,
             help="Probability of a flare augmentation in artifact detector",
         )
+        parser.add_argument(
+            "--p-hqflare",
+            type=float,
+            default=0.5,
+            help="Probability of a high quality flare augmentation in artifact detector",
+        )
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
-        assert (
-            0 <= self.diff_intensity <= 255
-        ), "Diff intensity threshold must be in [0, 255]"
-        assert (
-            0 <= self.sun_aug_prob <= 1
-        ), "SUN Augmentation probability must be in [0, 1]"
+        assert 0 <= self.diff_intensity <= 255, (
+            "Diff intensity threshold must be in [0, 255]"
+        )
+        assert 0 <= self.sun_aug_prob <= 1, (
+            "SUN Augmentation probability must be in [0, 1]"
+        )
 
     def prepare_inference(self):
         if self.weights:
             assert self.weights.exists(), f"Weights file {self.weights} does not exist"
         if self.data_dir:
-            assert (
-                self.data_dir.exists()
-            ), f"Data directory {self.data_dir} does not exist"
+            assert self.data_dir.exists(), (
+                f"Data directory {self.data_dir} does not exist"
+            )
         if self.output:
             self.output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -276,4 +282,5 @@ class Config:
             p_sun=self.p_sun,
             p_glare=self.p_glare,
             p_flare=self.p_flare,
+            p_hqflare=self.p_hqflare,
         )

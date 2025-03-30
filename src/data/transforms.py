@@ -422,7 +422,12 @@ class HQFlareBasedAugmenter(BaseLightArtifactAugmenter):
         return flare
 
     def generate_map(self, shape):
-        return self._get_flare(shape)
+        n_flares = np.random.randint(1, 5)
+        flare_map = np.zeros(shape=shape, dtype=np.uint8)
+        for _ in range(n_flares):
+            flare = self._get_flare(shape)
+            flare_map = cv2.add(flare_map, flare)
+        return flare_map
 
 
 class CompositeLightArtifactAugmenter:
@@ -432,9 +437,9 @@ class CompositeLightArtifactAugmenter:
         probs: list[float],
         fix_by_idx: bool = False,
     ):
-        assert len(augmenters) == len(probs), (
-            "Augmenters and probs must have same length"
-        )
+        assert len(augmenters) == len(
+            probs
+        ), "Augmenters and probs must have same length"
         self.augmenters = augmenters
         self.probs = probs
         self.fix_by_idx = fix_by_idx

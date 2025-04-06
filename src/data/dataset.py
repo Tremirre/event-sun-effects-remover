@@ -57,10 +57,10 @@ class BGREMDataset(torch.utils.data.Dataset):
         self.yuv_interpolation = yuv_interpolation
         self.blur_kernel = (2 * blur_factor + 1, 2 * blur_factor + 1)
 
-        if self.yuv_interpolation:
-            assert not self.separate_event_channel, (
-                "Cannot interpolate YUV and have separate event channel"
-            )
+        # if self.yuv_interpolation:
+        #     assert not self.separate_event_channel, (
+        #         "Cannot interpolate YUV and have separate event channel"
+        #     )
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -68,7 +68,7 @@ class BGREMDataset(torch.utils.data.Dataset):
     def mask_out_image(
         self, mask_expanded: np.ndarray, bgr: np.ndarray, event_expanded: np.ndarray
     ) -> np.ndarray:
-        if self.separate_event_channel:
+        if self.separate_event_channel and not self.yuv_interpolation:
             bgr = bgr.astype(np.float32) / 255.0
             return (1 - mask_expanded) * bgr * 255.0
         if not self.yuv_interpolation:
@@ -76,9 +76,14 @@ class BGREMDataset(torch.utils.data.Dataset):
             return ((1 - mask_expanded) * bgr + mask_expanded * event_expanded) * 255.0
         yuv = cv2.cvtColor(bgr, cv2.COLOR_BGR2YUV)
         yuv = yuv.astype(np.float32) / 255.0
-        yuv[:, :, 0] = (1 - mask_expanded[:, :, 0]) * yuv[:, :, 0] + mask_expanded[
-            :, :, 0
-        ] * event_expanded[:, :, 0]
+        if self.separate_event_channel:
+            yuv[:, :, 0] = (1 - mask_expanded[:, :, 0]) * yuv[:, :, 0] + mask_expanded[
+                :, :, 0
+            ] * np.zeros_like(yuv[:, :, 0])
+        else:
+            yuv[:, :, 0] = (1 - mask_expanded[:, :, 0]) * yuv[:, :, 0] + mask_expanded[
+                :, :, 0
+            ] * event_expanded[:, :, 0]
         return cv2.cvtColor((yuv * 255.0).astype(np.uint8), cv2.COLOR_YUV2BGR)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:

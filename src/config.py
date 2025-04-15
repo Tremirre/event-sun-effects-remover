@@ -39,6 +39,10 @@ class Config:
     full_pred: bool = False
     weights: pathlib.Path | None = None
     data_dir: pathlib.Path | None = None
+    ref_dir: pathlib.Path | None = None
+    train_dir: pathlib.Path | None = None
+    val_dir: pathlib.Path | None = None
+    test_dir: pathlib.Path | None = None
     output: pathlib.Path | None = None
 
     # === artifact detector params ===
@@ -155,7 +159,27 @@ class Config:
         parser.add_argument(
             "--data-dir",
             type=pathlib.Path,
-            help="Path to data directory",
+            help="Path to data directory for inference",
+        )
+        parser.add_argument(
+            "--ref-dir",
+            type=pathlib.Path,
+            help="Path to reference directory",
+        )
+        parser.add_argument(
+            "--train-dir",
+            type=pathlib.Path,
+            help="Path to train directory",
+        )
+        parser.add_argument(
+            "--val-dir",
+            type=pathlib.Path,
+            help="Path to val directory",
+        )
+        parser.add_argument(
+            "--test-dir",
+            type=pathlib.Path,
+            help="Path to test directory",
         )
         parser.add_argument(
             "--output",
@@ -204,20 +228,44 @@ class Config:
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
-        assert 0 <= self.diff_intensity <= 255, (
-            "Diff intensity threshold must be in [0, 255]"
+        assert (
+            0 <= self.diff_intensity <= 255
+        ), "Diff intensity threshold must be in [0, 255]"
+        assert (
+            0 <= self.sun_aug_prob <= 1
+        ), "SUN Augmentation probability must be in [0, 1]"
+        assert (
+            0 <= self.grayscale_patch_prob <= 1
+        ), "Grayscale patch probability must be in [0, 1]"
+        assert (
+            0 <= self.glare_aug_prob <= 1
+        ), "Glare Augmentation probability must be in [0, 1]"
+        assert 0 <= self.p_sun <= 1, "Probability of sun augmentation must be in [0, 1]"
+        assert (
+            0 <= self.p_glare <= 1
+        ), "Probability of glare augmentation must be in [0, 1]"
+        assert (
+            0 <= self.p_flare <= 1
+        ), "Probability of flare augmentation must be in [0, 1]"
+        assert (
+            0 <= self.p_hq_flare <= 1
+        ), "Probability of high quality flare augmentation must be in [0, 1]"
+        self.train_dir = self.train_dir or const.TRAIN_DIR
+        self.val_dir = self.val_dir or const.VAL_DIR
+        self.test_dir = self.test_dir or (
+            const.TEST_DIR
+            if not self.artifact_detector
+            else const.ARTIFACT_DET_TEST_DIR
         )
-        assert 0 <= self.sun_aug_prob <= 1, (
-            "SUN Augmentation probability must be in [0, 1]"
-        )
+        self.ref_dir = self.ref_dir or const.REF_DIR
 
     def prepare_inference(self):
         if self.weights:
             assert self.weights.exists(), f"Weights file {self.weights} does not exist"
         if self.data_dir:
-            assert self.data_dir.exists(), (
-                f"Data directory {self.data_dir} does not exist"
-            )
+            assert (
+                self.data_dir.exists()
+            ), f"Data directory {self.data_dir} does not exist"
         if self.output:
             self.output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -271,16 +319,26 @@ class Config:
         data_module = datamodule.EventDataModule
         if self.artifact_detector:
             data_module = datamodule.ArtifactDetectionDataModule
+        train_paths = sorted(self.train_dir.glob(const.DATA_PATTERN))
+        train_paths = [p for p in train_paths if p.match(self.img_glob)]
+        val_paths = sorted(self.val_dir.glob(const.DATA_PATTERN))
+        test_paths = sorted(self.test_dir.glob(const.DATA_PATTERN))
+        ref_paths = sorted(self.ref_dir.glob(const.DATA_PATTERN))
+
+        assert train_paths, f"Train paths not found in {self.train_dir}"
+        assert val_paths, f"Val paths not found in {self.val_dir}"
+        assert test_paths, f"Test paths not found in {self.test_dir}"
 
         return data_module(
-            data_dir=const.TRAIN_VAL_TEST_DIR,
-            ref_dir=const.REF_DIR,
+            train_paths=train_paths,
+            val_paths=val_paths,
+            test_paths=test_paths,
+            ref_paths=ref_paths,
             batch_size=self.batch_size,
             frac_used=self.frac_used,
             num_workers=self.num_workers,
             ref_threshold=self.diff_intensity,
             sep_event_channel=self.event_channel,
-            train_img_glob=self.img_glob,
             mask_blur_factor=self.mask_blur_factor,
             yuv_interpolation=self.yuv_interpolation,
             sun_aug_prob=self.sun_aug_prob,

@@ -13,40 +13,31 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
-DATA_PATTERN = "**/*.npy"
-
 
 class BaseDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        data_dir: pathlib.Path,
-        ref_dir: pathlib.Path | None = None,
-        train_img_glob: str = DATA_PATTERN,
-        val_prob: float = 0.1,
-        test_prob: float = 0.1,
+        train_paths: list[pathlib.Path],
+        val_paths: list[pathlib.Path],
+        test_paths: list[pathlib.Path],
+        ref_paths: list[pathlib.Path] = None,
         num_workers: int = 0,
         batch_size: int = 32,
         frac_used: float = 1,
         **kwargs,
     ) -> None:
         super().__init__()
-        self.data_dir = data_dir
-        self.ref_dir = ref_dir
-        self.train_img_glob = train_img_glob
-        self.ref_paths = sorted(ref_dir.glob(DATA_PATTERN)) if ref_dir else []
-        self.img_paths = list(self.data_dir.glob(DATA_PATTERN))
-        self.val_prob = val_prob
-        self.test_prob = test_prob
+        self.train_paths = train_paths
+        self.val_paths = val_paths
+        self.test_paths = test_paths
+        self.ref_paths = ref_paths or []
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.frac_used = frac_used
 
-        np.random.shuffle(self.img_paths)  # type: ignore
-        n = len(self.img_paths)
-        self.img_paths = self.img_paths[: int(self.frac_used * n)]
-        n = len(self.img_paths)
-        self.val_n = int(n * self.val_prob)
-        self.test_n = int(n * self.test_prob)
+        np.random.shuffle(self.train_paths)  # type: ignore
+        n = len(self.train_paths)
+        self.train_paths = self.train_paths[: int(self.frac_used * n)]
 
         self.train_dataset = None
         self.val_dataset = None
@@ -60,12 +51,10 @@ class BaseDataModule(pl.LightningDataModule):
         raise NotImplementedError
 
     def get_dataset_sizes(self) -> dict[str, int]:
-        train_files = self.img_paths[self.val_n + self.test_n :]
-        train_files = [p for p in train_files if p.match(self.train_img_glob)]
         return {
-            "train_size": len(train_files),
-            "val_size": self.val_n,
-            "test_size": self.test_n,
+            "train_size": len(self.train_paths),
+            "val_size": len(self.val_paths),
+            "test_size": len(self.test_paths),
             "ref_size": len(self.ref_paths),
         }
 
@@ -131,16 +120,10 @@ class EventDataModule(BaseDataModule):
         logger.info("Initialized Event Data module")
 
     def setup(self, stage: str) -> None:
-        val_files = self.img_paths[: self.val_n]
-        test_files = self.img_paths[self.val_n : self.val_n + self.test_n]
-        train_files = self.img_paths[self.val_n + self.test_n :]
-        train_files = [p for p in train_files if p.match(self.train_img_glob)]
-        assert len(train_files) > 0, "No training files found"
-
         logger.info(f"Setting up datasets for stage: {stage}")
         if stage == "fit" or stage is None:
             self.train_dataset = dataset.BGREMDataset(
-                train_files,
+                self.train_paths,
                 masker=transforms.RandomizedMasker(),
                 bgr_transform=T.Compose(
                     [
@@ -168,7 +151,7 @@ class EventDataModule(BaseDataModule):
                 yuv_interpolation=self.yuv_interpolation,
             )
             self.val_dataset = dataset.BGREMDataset(
-                val_files,
+                self.val_paths,
                 masker=transforms.RandomizedMasker(fix_by_idx=True),
                 bgr_transform=T.Compose(
                     [
@@ -181,7 +164,7 @@ class EventDataModule(BaseDataModule):
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREMDataset(
-                test_files,
+                self.test_paths,
                 masker=transforms.RandomizedMasker(fix_by_idx=True),
                 bgr_transform=T.Compose(
                     [
@@ -210,23 +193,14 @@ class EventDataModule(BaseDataModule):
 class ArtifactDetectionDataModule(BaseDataModule):
     def __init__(
         self,
-        p_flare: float,
-        p_sun: float,
-        p_glare: float,
-        p_hq_flare: float,
-        test_dir: pathlib.Path = const.ARTIFACT_DET_TEST_DIR,
+        p_flare: float = 0.0,
+        p_sun: float = 0.0,
+        p_glare: float = 0.0,
+        p_hq_flare: float = 0.0,
         target_binarization: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
-        assert test_dir.exists(), f"Test directory {test_dir} does not exist"
-        self.test_dir = test_dir
-        self.test_files = list(test_dir.glob(DATA_PATTERN))
-        self.test_n = 0
-        logger.info(
-            "Using external test dataset with {} files".format(len(self.test_files))
-        )
-        assert len(self.test_files) > 0, "No test files found"
         self.p_flare = p_flare
         self.p_sun = p_sun
         self.p_glare = p_glare
@@ -251,15 +225,10 @@ class ArtifactDetectionDataModule(BaseDataModule):
         )
 
     def setup(self, stage: str) -> None:
-        val_files = self.img_paths[: self.val_n]
-        train_files = self.img_paths[self.val_n + self.test_n :]
-        train_files = [p for p in train_files if p.match(self.train_img_glob)]
-        assert len(train_files) > 0, "No training files found"
-
         logger.info(f"Setting up datasets for stage: {stage}")
         if stage == "fit" or stage is None:
             self.train_dataset = dataset.BGRArtifcatDataset(
-                train_files,
+                self.train_paths,
                 transform=T.Compose(
                     [
                         T.ToTensor(),
@@ -269,7 +238,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
                 binarize=self.target_binarization,
             )
             self.val_dataset = dataset.BGRArtifcatDataset(
-                val_files,
+                self.val_paths,
                 transform=T.Compose(
                     [
                         T.ToTensor(),
@@ -280,7 +249,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGRArtifcatDataset(
-                self.test_files,
+                self.test_paths,
                 transform=T.Compose(
                     [
                         T.ToTensor(),

@@ -19,13 +19,15 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s"
 )
 
+EVENT_FORMAT = "all_events_{}.npy"
+FRAME_FORMAT = "bgr_frames_{}.npy"
+FRAME_TS_FORMAT = "bgr_timestamps_{}.npy"
+SUFFIX_LENGTH = 5
+
 
 @dataclasses.dataclass
 class Args:
-    input_events: pathlib.Path
-    input_frames: pathlib.Path
-    input_timestamps: pathlib.Path
-    series_name: str
+    input: pathlib.Path
     skip_every: int
     output_folder: pathlib.Path
     event_width: int = 640
@@ -35,22 +37,10 @@ class Args:
     def from_cli(cls) -> Args:
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "--input_events",
+            "--input",
             required=True,
             type=pathlib.Path,
-            help="Path to the input events .npy file",
-        )
-        parser.add_argument(
-            "--input_frames",
-            required=True,
-            type=pathlib.Path,
-            help="Path to the input RGB .npy file",
-        )
-        parser.add_argument(
-            "--input_timestamps",
-            required=True,
-            type=pathlib.Path,
-            help="Path to the frames timestamps .npy file",
+            help="Path to the input directory containing events, frames, and timestamps",
         )
         parser.add_argument(
             "--skip_every",
@@ -64,12 +54,6 @@ class Args:
             required=True,
             type=pathlib.Path,
             help="Path to the output folder",
-        )
-        parser.add_argument(
-            "--series_name",
-            required=True,
-            type=str,
-            help="Name of the series for the output folder",
         )
         parser.add_argument(
             "--event_width",
@@ -88,9 +72,21 @@ class Args:
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
-        assert self.input_events.exists(), f"{self.input_events} does not exist"
-        assert self.input_frames.exists(), f"{self.input_frames} does not exist"
-        assert self.input_timestamps.exists(), f"{self.input_timestamps} does not exist"
+        assert self.input.is_dir(), f"Input path {self.input} is not a directory"
+        n_events = len(list(self.input.glob(EVENT_FORMAT.format("*"))))
+        n_frames = len(list(self.input.glob(FRAME_FORMAT.format("*"))))
+        n_frame_ts = len(list(self.input.glob(FRAME_TS_FORMAT.format("*"))))
+        assert n_events > 0, f"No event files found in {self.input}"
+        assert n_frames > 0, f"No frame files found in {self.input}"
+        assert n_frame_ts > 0, f"No frame timestamp files found in {self.input}"
+
+        assert (
+            n_events == n_frames
+        ), f"Number of events ({n_events}) does not match number of frames ({n_frames})"
+        assert (
+            n_events == n_frame_ts
+        ), f"Number of events ({n_events}) does not match number of frame timestamps ({n_frame_ts})"
+
         self.output_folder.mkdir(parents=True, exist_ok=True)
 
 
@@ -142,49 +138,66 @@ def export_frames(
 
 if __name__ == "__main__":
     args = Args.from_cli()
-    logging.info(f"Input events: {args.input_events}")
-    logging.info(f"Input video: {args.input_frames}")
-    logging.info(f"Input timestamps: {args.input_timestamps}")
+    logging.info(f"Input directory: {args.input}")
+    logging.info(f"Output directory: {args.output_folder}")
 
     logging.info("Loading model")
     model = load_model(const.PRETRAINED_DIR / "E2VID_lightweight.pth.tar").to(
         const.DEVICE
     )
-    # model.eval()
+    suffixes = [
+        path.stem[-SUFFIX_LENGTH:] for path in args.input.glob(EVENT_FORMAT.format("*"))
+    ]
 
-    logging.info(f"Loading events from {args.input_events}")
-    events_orig = np.load(args.input_events)
-    events = np.stack(
-        [events_orig["t"], events_orig["x"], events_orig["y"], events_orig["p"]]
-    ).T.astype(np.int64)
-    event_timestamps = (events[:, 0] / 1e6).astype(np.int64)
-    _, ts_counts = np.unique(event_timestamps, return_counts=True)
+    suffixes = sorted(set(suffixes))
 
-    first_timestamp = event_timestamps[0]
-    logging.info(f"First timestamp: {first_timestamp}")
-    logging.info(f"Width: {args.event_width}, Height: {args.event_height}")
-    logging.info(f"Number of events: {len(events)}")
-    logging.info(f"Loading frames from {args.input_frames}")
+    logging.info(f"Found {len(suffixes)} suffixes: {suffixes}")
 
-    src_frames = np.load(args.input_frames)
-    src_frames = np.stack(
-        [
-            cv2.cvtColor(cv2.resize(frame, (640, 480)), cv2.COLOR_RGB2BGR)
-            for frame in src_frames
-        ]
-    )
-    logging.info(f"Number of frames: {len(src_frames)}")
+    for suffix in suffixes:
+        logging.info(f"Processing suffix: {suffix}")
+        input_events = args.input / EVENT_FORMAT.format(suffix)
+        input_frames = args.input / FRAME_FORMAT.format(suffix)
+        input_timestamps = args.input / FRAME_TS_FORMAT.format(suffix)
 
-    frame_timestamps = (np.load(args.input_timestamps) * 1e3).astype(np.int64)
-    frame_timestamps -= frame_timestamps.min()
-    src_frames = utils.Frames(src_frames, frame_timestamps)
+        logging.info(f"Input events: {input_events}")
+        logging.info(f"Input video: {input_frames}")
+        logging.info(f"Input timestamps: {input_timestamps}")
 
-    export_frames(
-        src_frames,
-        events,
-        ts_counts,
-        model,
-        args.output_folder,
-        args.skip_every,
-        args.series_name,
-    )
+        # model.eval()
+
+        logging.info(f"Loading events from {input_events}")
+        events_orig = np.load(input_events)
+        events = np.stack(
+            [events_orig["t"], events_orig["x"], events_orig["y"], events_orig["p"]]
+        ).T.astype(np.int64)
+        event_timestamps = (events[:, 0] / 1e6).astype(np.int64)
+        _, ts_counts = np.unique(event_timestamps, return_counts=True)
+
+        first_timestamp = event_timestamps[0]
+        logging.info(f"First timestamp: {first_timestamp}")
+        logging.info(f"Width: {args.event_width}, Height: {args.event_height}")
+        logging.info(f"Number of events: {len(events)}")
+        logging.info(f"Loading frames from {input_frames}")
+
+        src_frames = np.load(input_frames)
+        src_frames = np.stack(
+            [
+                cv2.cvtColor(cv2.resize(frame, (640, 480)), cv2.COLOR_RGB2BGR)
+                for frame in src_frames
+            ]
+        )
+        logging.info(f"Number of frames: {len(src_frames)}")
+
+        frame_timestamps = (np.load(input_timestamps) * 1e3).astype(np.int64)
+        frame_timestamps -= frame_timestamps.min()
+        src_frames = utils.Frames(src_frames, frame_timestamps)
+
+        export_frames(
+            src_frames,
+            events,
+            ts_counts,
+            model,
+            args.output_folder,
+            args.skip_every,
+            args.input.stem + "_" + suffix,
+        )

@@ -1,5 +1,7 @@
 import dataclasses
+import json
 import logging
+import tempfile
 
 import dotenv
 import numpy as np
@@ -88,4 +90,13 @@ if __name__ == "__main__":
         if ref_img_logger:
             logger.info("Logging best model reference images (epoch %d)", best_epoch)
             ref_img_logger.log_ref_images(trainer, model)
+
+    logger.info("Logging JSON config")
+    config_dict = config.to_json_dict()
+    config_dict["run_idx"] = RUN_IDX
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
+        json.dump(config_dict, f, indent=4)
+        f.flush()
+        run_logger.experiment["config"].upload(f.name)
+
     run_logger.experiment.stop()

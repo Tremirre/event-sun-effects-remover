@@ -53,6 +53,16 @@ class Config:
     p_hq_flare: float = 0.5
     target_binarization: bool = False
 
+    def to_json_dict(self) -> dict[str, object]:
+        serialized = dataclasses.asdict(self)
+        serialized_clean = {}
+        for key, value in serialized.items():
+            if isinstance(value, pathlib.Path):
+                serialized_clean[key] = str(value)
+            else:
+                serialized_clean[key] = value
+        return serialized_clean
+
     @classmethod
     def from_args(cls):
         parser = argparse.ArgumentParser()
@@ -228,28 +238,28 @@ class Config:
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
-        assert (
-            0 <= self.diff_intensity <= 255
-        ), "Diff intensity threshold must be in [0, 255]"
-        assert (
-            0 <= self.sun_aug_prob <= 1
-        ), "SUN Augmentation probability must be in [0, 1]"
-        assert (
-            0 <= self.grayscale_patch_prob <= 1
-        ), "Grayscale patch probability must be in [0, 1]"
-        assert (
-            0 <= self.glare_aug_prob <= 1
-        ), "Glare Augmentation probability must be in [0, 1]"
+        assert 0 <= self.diff_intensity <= 255, (
+            "Diff intensity threshold must be in [0, 255]"
+        )
+        assert 0 <= self.sun_aug_prob <= 1, (
+            "SUN Augmentation probability must be in [0, 1]"
+        )
+        assert 0 <= self.grayscale_patch_prob <= 1, (
+            "Grayscale patch probability must be in [0, 1]"
+        )
+        assert 0 <= self.glare_aug_prob <= 1, (
+            "Glare Augmentation probability must be in [0, 1]"
+        )
         assert 0 <= self.p_sun <= 1, "Probability of sun augmentation must be in [0, 1]"
-        assert (
-            0 <= self.p_glare <= 1
-        ), "Probability of glare augmentation must be in [0, 1]"
-        assert (
-            0 <= self.p_flare <= 1
-        ), "Probability of flare augmentation must be in [0, 1]"
-        assert (
-            0 <= self.p_hq_flare <= 1
-        ), "Probability of high quality flare augmentation must be in [0, 1]"
+        assert 0 <= self.p_glare <= 1, (
+            "Probability of glare augmentation must be in [0, 1]"
+        )
+        assert 0 <= self.p_flare <= 1, (
+            "Probability of flare augmentation must be in [0, 1]"
+        )
+        assert 0 <= self.p_hq_flare <= 1, (
+            "Probability of high quality flare augmentation must be in [0, 1]"
+        )
         self.train_dir = self.train_dir or const.TRAIN_DIR
         self.val_dir = self.val_dir or const.VAL_DIR
         self.test_dir = self.test_dir or (
@@ -263,9 +273,9 @@ class Config:
         if self.weights:
             assert self.weights.exists(), f"Weights file {self.weights} does not exist"
         if self.data_dir:
-            assert (
-                self.data_dir.exists()
-            ), f"Data directory {self.data_dir} does not exist"
+            assert self.data_dir.exists(), (
+                f"Data directory {self.data_dir} does not exist"
+            )
         if self.output:
             self.output.parent.mkdir(parents=True, exist_ok=True)
 

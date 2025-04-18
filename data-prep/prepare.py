@@ -169,6 +169,7 @@ if __name__ == "__main__":
         logging.info(f"Applying offset {-alignment_meta.offset_ms}ms to video")
         skip_frames_ms = -alignment_meta.offset_ms
         skip_frames = (src_frames.timestamps < skip_frames_ms).sum()
+        logging.info(f"Skipping {skip_frames} frames")
         src_frames.array = src_frames.array[skip_frames:]
         src_frames.timestamps = (
             src_frames.timestamps[skip_frames:] - src_frames.timestamps[skip_frames]

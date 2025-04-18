@@ -1,7 +1,7 @@
 import pathlib
 
 SRC_PATH = pathlib.Path("data") / "processed"
-SRC_GLOB = "**/*.npy"
+SRC_GLOB = "**/{scene}*.npy"
 TARGET_PATH = pathlib.Path("data") / "inpaint"
 
 ASSINGMENT = {
@@ -38,15 +38,12 @@ if __name__ == "__main__":
         split_path.mkdir(parents=True, exist_ok=True)
 
         for scene in scenes:
-            scene_path = SRC_PATH / scene
-            if not scene_path.exists():
-                print(f"Scene {scene} does not exist.")
-                continue
-            for file in scene_path.glob(SRC_GLOB):
+            filled_glob = SRC_GLOB.format(scene=scene)
+            for file in SRC_PATH.glob(filled_glob):
                 if not file.is_file():
                     print(f"File {file} is not a file.")
                     continue
-                target_path = split_path / file.relative_to(scene_path)
+                target_path = split_path / file.relative_to(SRC_PATH)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(file.read_text())
                 print(f"Copied {file} to {target_path}")

@@ -45,5 +45,5 @@ if __name__ == "__main__":
                     continue
                 target_path = split_path / file.relative_to(SRC_PATH)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                target_path.write_text(file.read_text())
+                target_path.write_bytes(file.read_bytes())
                 print(f"Copied {file} to {target_path}")

@@ -36,6 +36,8 @@ class BaseDataModule(pl.LightningDataModule):
         self.frac_used = frac_used
 
         np.random.shuffle(self.train_paths)  # type: ignore
+        np.random.shuffle(self.val_paths)  # type: ignore
+        np.random.shuffle(self.test_paths)  # type: ignore
         n = len(self.train_paths)
         self.train_paths = self.train_paths[: int(self.frac_used * n)]
 

@@ -272,7 +272,7 @@ class LensFlareAdder(BaseLightArtifactAugmenter):
         cv2.circle(
             img,
             pos,
-            np.random.randint(10, 50),
+            size,
             rand_light_color(),
             np.random.randint(1, 5),
         )
@@ -281,7 +281,7 @@ class LensFlareAdder(BaseLightArtifactAugmenter):
     def _add_circle(
         self, img: np.ndarray, pos: tuple[int, int], size: int
     ) -> np.ndarray:
-        cv2.circle(img, pos, np.random.randint(10, 50), rand_light_color(), -1)
+        cv2.circle(img, pos, size, rand_light_color(), -1)
         return img
 
     def _add_poly(self, img: np.ndarray, pos: tuple[int, int], size: int) -> np.ndarray:
@@ -437,9 +437,9 @@ class CompositeLightArtifactAugmenter:
         probs: list[float],
         fix_by_idx: bool = False,
     ):
-        assert len(augmenters) == len(
-            probs
-        ), "Augmenters and probs must have same length"
+        assert len(augmenters) == len(probs), (
+            "Augmenters and probs must have same length"
+        )
         self.augmenters = augmenters
         self.probs = probs
         self.fix_by_idx = fix_by_idx

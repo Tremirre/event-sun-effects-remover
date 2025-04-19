@@ -213,8 +213,8 @@ class ArtifactDetectionDataModule(BaseDataModule):
     ) -> transforms.CompositeLightArtifactAugmenter:
         return transforms.CompositeLightArtifactAugmenter(
             augmenters=[
-                transforms.LensFlareAdder(1, 10, 5, 100, 0.25, 0.8, 0.2),
-                transforms.VeilingGlareAdder(10, 250, 10, 150, 0.3),
+                transforms.LensFlareAdder(1, 10, 1, 20, 0.6, 0.9, 0.2),
+                transforms.VeilingGlareAdder(10, 150, 10, 60, 0.3),
                 transforms.SunAdder(4, 25, 0.0, 0.5, 0.3, 0.8),
                 transforms.HQFlareBasedAugmenter(
                     list(const.FLARES_DIR.glob("**/*.png"))

@@ -3,8 +3,8 @@ pretrained
 **/*.pyc
 **/*.png
 /data/**/*
+checkpoints/
 rec
-/excluded/**/*
 lightning_logs
 .env
 .neptune

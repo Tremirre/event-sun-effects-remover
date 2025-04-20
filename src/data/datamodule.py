@@ -1,7 +1,6 @@
 import logging
 import pathlib
 
-import numpy as np
 import pytorch_lightning as pl
 import torch.utils.data
 import torchvision.transforms as T
@@ -23,7 +22,6 @@ class BaseDataModule(pl.LightningDataModule):
         ref_paths: list[pathlib.Path] | None = None,
         num_workers: int = 0,
         batch_size: int = 32,
-        frac_used: float = 1,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -33,14 +31,6 @@ class BaseDataModule(pl.LightningDataModule):
         self.ref_paths = ref_paths or []
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.frac_used = frac_used
-
-        np.random.shuffle(self.train_paths)  # type: ignore
-        np.random.shuffle(self.val_paths)  # type: ignore
-        np.random.shuffle(self.test_paths)  # type: ignore
-        n = len(self.train_paths)
-        self.train_paths = self.train_paths[: int(self.frac_used * n)]
-
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None

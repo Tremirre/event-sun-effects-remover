@@ -2,6 +2,7 @@ import argparse
 import dataclasses
 import pathlib
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import loggers, profilers
@@ -9,44 +10,38 @@ from torch.profiler import tensorboard_trace_handler
 
 from src import const
 from src.data import datamodule
-from src.model import modules
+from src.model.combiners import get_combiner
+from src.model.models import get_model
+from src.model.modules import DetectorInpainterModule
 
 
 @dataclasses.dataclass
 class Config:
     batch_size: int
-    unet_blocks: int
-    unet_depth: int
-    unet_kernel: int
-    unet_fft: bool
     max_epochs: int
     frac_used: float
-    diff_intensity: int
-    gan_adv_weight: float = 0.1
+    detect_model: str
+    combiner_model: str
+    inpainter_model: str
+    detector_kwargs: dict[str, str | int | bool] = dataclasses.field(
+        default_factory=dict
+    )
+    combiner_kwargs: dict[str, str | int | bool] = dataclasses.field(
+        default_factory=dict
+    )
+    inpainter_kwargs: dict[str, str | int | bool] = dataclasses.field(
+        default_factory=dict
+    )
     img_glob: str = "**/*.npy"
-    module_type: str = "unet"
-    event_channel: bool = False
     num_workers: int = 0
     profile: bool = False
     log_tensorboard: bool = False
-    yuv_interpolation: bool = False
-    mask_blur_factor: int = 0
-    sun_aug_prob: float = 0
-    grayscale_patch_prob: float = 0
-    glare_aug_prob: float = 0
     run_tags: str = "default"
     save: bool = False
-    full_pred: bool = False
-    weights: pathlib.Path | None = None
-    data_dir: pathlib.Path | None = None
-    ref_dir: pathlib.Path | None = None
-    train_dir: pathlib.Path | None = None
-    val_dir: pathlib.Path | None = None
-    test_dir: pathlib.Path | None = None
-    output: pathlib.Path | None = None
-
-    # === artifact detector params ===
-    artifact_detector: bool = False
+    ref_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
+    train_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
+    val_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
+    test_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
     p_sun: float = 0.5
     p_glare: float = 0.5
     p_flare: float = 0.5
@@ -68,32 +63,43 @@ class Config:
         parser = argparse.ArgumentParser()
         parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
         parser.add_argument(
-            "--unet-blocks", type=int, default=2, help="Number of U-Net blocks"
-        )
-        parser.add_argument(
-            "--unet-depth",
-            type=int,
-            default=1,
-            help="Depth of U-Net blocks (number of 1-conv layers per block)",
-        )
-        parser.add_argument(
-            "--unet-kernel", type=int, default=3, help="Kernel size of U-Net blocks"
-        )
-        parser.add_argument(
-            "--unet-fft",
-            action="store_true",
-            help="Use Fourier Convolution in U-Net blocks",
-        )
-        parser.add_argument(
-            "--module-type",
-            type=str,
-            default="unet",
-        )
-        parser.add_argument(
             "--max-epochs", type=int, default=10, help="Number of epochs"
         )
         parser.add_argument(
             "--frac-used", type=float, default=1, help="Fraction of data used"
+        )
+        parser.add_argument(
+            "--detect-model",
+            type=str,
+            help="Model for the detector",
+        )
+        parser.add_argument(
+            "--combiner-model",
+            type=str,
+            help="Model for the combiner",
+        )
+        parser.add_argument(
+            "--inpainter-model",
+            type=str,
+            help="Model for the inpainter",
+        )
+        parser.add_argument(
+            "--detector-kwargs",
+            type=lambda x: eval(x),
+            default="{}",
+            help="Additional kwargs for the detector model",
+        )
+        parser.add_argument(
+            "--combiner-kwargs",
+            type=lambda x: eval(x),
+            default="{}",
+            help="Additional kwargs for the combiner model",
+        )
+        parser.add_argument(
+            "--inpainter-kwargs",
+            type=lambda x: eval(x),
+            default="{}",
+            help="Additional kwargs for the inpainter model",
         )
         parser.add_argument(
             "--num-workers", type=int, default=0, help="Number of workers"
@@ -110,66 +116,10 @@ class Config:
         )
         parser.add_argument("--save", action="store_true", help="Save the model")
         parser.add_argument(
-            "--diff-intensity",
-            type=int,
-            default=100,
-            help="Light intensity threshold for reference images",
-        )
-        parser.add_argument(
-            "--gan-adv-weight",
-            type=float,
-            default=0.1,
-            help="Weight for adversarial loss in GAN",
-        )
-        parser.add_argument(
-            "--event-channel",
-            action="store_true",
-            help="Use separate event channel in dataset (5 channel input), else fill the masked region in bgr with event data.",
-        )
-        parser.add_argument(
-            "--yuv-interpolation",
-            action="store_true",
-            help="Interpolate Y channel with event data (only if event channel is not separate)",
-        )
-        parser.add_argument(
-            "--mask-blur-factor",
-            type=int,
-            help="Gaussian blur factor for mask, sigma = mask_blur_factor, kernel_size = 2 * mask_blur_factor + 1",
-            default=0,
-        )
-        parser.add_argument(
-            "--sun-aug-prob",
-            type=float,
-            default=0,
-            help="Probability of applying SUN Augmentation",
-        )
-        parser.add_argument(
-            "--grayscale-patch-prob",
-            type=float,
-            default=0,
-            help="Probability of applying Grayscale Patch Augmentation",
-        )
-        parser.add_argument(
-            "--glare-aug-prob",
-            type=float,
-            default=0,
-            help="Probability of applying Glare Augmentation",
-        )
-        parser.add_argument(
             "--img-glob",
             type=str,
             default="**/*.npy",
             help="Glob pattern for train image files",
-        )
-        parser.add_argument(
-            "--weights",
-            type=pathlib.Path,
-            help="Path to weights file",
-        )
-        parser.add_argument(
-            "--data-dir",
-            type=pathlib.Path,
-            help="Path to data directory for inference",
         )
         parser.add_argument(
             "--ref-dir",
@@ -190,21 +140,6 @@ class Config:
             "--test-dir",
             type=pathlib.Path,
             help="Path to test directory",
-        )
-        parser.add_argument(
-            "--output",
-            type=pathlib.Path,
-            help="Output path",
-        )
-        parser.add_argument(
-            "--full-pred",
-            action="store_true",
-            help="Output full prediction",
-        )
-        parser.add_argument(
-            "--artifact-detector",
-            action="store_true",
-            help="Use artifact detector",
         )
         parser.add_argument(
             "--p-sun",
@@ -238,18 +173,6 @@ class Config:
         return cls(**vars(parser.parse_args()))
 
     def __post_init__(self):
-        assert 0 <= self.diff_intensity <= 255, (
-            "Diff intensity threshold must be in [0, 255]"
-        )
-        assert 0 <= self.sun_aug_prob <= 1, (
-            "SUN Augmentation probability must be in [0, 1]"
-        )
-        assert 0 <= self.grayscale_patch_prob <= 1, (
-            "Grayscale patch probability must be in [0, 1]"
-        )
-        assert 0 <= self.glare_aug_prob <= 1, (
-            "Glare Augmentation probability must be in [0, 1]"
-        )
         assert 0 <= self.p_sun <= 1, "Probability of sun augmentation must be in [0, 1]"
         assert 0 <= self.p_glare <= 1, (
             "Probability of glare augmentation must be in [0, 1]"
@@ -260,27 +183,6 @@ class Config:
         assert 0 <= self.p_hq_flare <= 1, (
             "Probability of high quality flare augmentation must be in [0, 1]"
         )
-        self.train_dir = self.train_dir or const.TRAIN_DIR
-        self.val_dir = self.val_dir or const.VAL_DIR
-        self.test_dir = self.test_dir or (
-            const.TEST_DIR
-            if not self.artifact_detector
-            else const.ARTIFACT_DET_TEST_DIR
-        )
-        self.ref_dir = self.ref_dir or const.REF_DIR
-
-    def prepare_inference(self):
-        if self.weights:
-            assert self.weights.exists(), f"Weights file {self.weights} does not exist"
-        if self.data_dir:
-            assert self.data_dir.exists(), (
-                f"Data directory {self.data_dir} does not exist"
-            )
-        if self.output:
-            self.output.parent.mkdir(parents=True, exist_ok=True)
-
-    def to_dict(self):
-        return dataclasses.asdict(self)
 
     def get_logger(self):
         if self.log_tensorboard:
@@ -304,42 +206,47 @@ class Config:
         return None
 
     def get_model(self) -> pl.LightningModule:
-        selection_dict = modules.INPAINT_NAMES
-        in_channels = 5 if self.event_channel else 4
-        if self.artifact_detector:
-            selection_dict = modules.DETECTION_NAMES
-            in_channels = 3
-
-        model = selection_dict[self.module_type](
-            n_blocks=self.unet_blocks,
-            block_depth=self.unet_depth,
-            kernel_size=self.unet_kernel,
-            with_fft=self.unet_fft,
-            in_channels=in_channels,
-            gan_adv_weight=self.gan_adv_weight,
+        detector = get_model(
+            self.detect_model,
+            **self.detector_kwargs,
+            in_channels=3,
+            out_channels=1,
         )
-        if self.weights:
-            weights = torch.load(self.weights, weights_only=True)
-            if "state_dict" in weights:
-                weights = weights["state_dict"]
-            model.load_state_dict(weights)
-        return model
+        combiner = get_combiner(
+            self.combiner_model,
+            **self.combiner_kwargs,
+        )
+        inpainter = get_model(
+            self.inpainter_model,
+            **self.inpainter_kwargs,
+            in_channels=combiner.get_output_channels(),
+            out_channels=const.CHANNELS_OUT,
+        )
+        return DetectorInpainterModule(
+            detector=detector,
+            combiner=combiner,
+            inpainter=inpainter,
+        )
 
     def get_data_module(self) -> datamodule.BaseDataModule:
-        data_module = datamodule.EventDataModule
-        if self.artifact_detector:
-            data_module = datamodule.ArtifactDetectionDataModule
-        train_paths = sorted(self.train_dir.glob(const.DATA_PATTERN))
+        train_paths = sorted(self.train_dir.glob(const.DATA_PATTERN))  # type: ignore
         train_paths = [p for p in train_paths if p.match(self.img_glob)]
-        val_paths = sorted(self.val_dir.glob(const.DATA_PATTERN))
-        test_paths = sorted(self.test_dir.glob(const.DATA_PATTERN))
-        ref_paths = sorted(self.ref_dir.glob(const.DATA_PATTERN))
+        val_paths = sorted(self.val_dir.glob(const.DATA_PATTERN))  # type: ignore
+        test_paths = sorted(self.test_dir.glob(const.DATA_PATTERN))  # type: ignore
+        ref_paths = sorted(self.ref_dir.glob(const.DATA_PATTERN))  # type: ignore
+
+        np.random.shuffle(train_paths)  # type: ignore
+        np.random.shuffle(val_paths)  # type: ignore
+        np.random.shuffle(test_paths)  # type: ignore
+        train_paths = train_paths[: int(len(train_paths) * self.frac_used)]
+        val_paths = val_paths[: int(len(val_paths) * self.frac_used)]
+        test_paths = test_paths[: int(len(test_paths) * self.frac_used)]
 
         assert train_paths, f"Train paths not found in {self.train_dir}"
         assert val_paths, f"Val paths not found in {self.val_dir}"
         assert test_paths, f"Test paths not found in {self.test_dir}"
 
-        return data_module(
+        return datamodule.JointDataModule(
             train_paths=train_paths,
             val_paths=val_paths,
             test_paths=test_paths,
@@ -347,13 +254,6 @@ class Config:
             batch_size=self.batch_size,
             frac_used=self.frac_used,
             num_workers=self.num_workers,
-            ref_threshold=self.diff_intensity,
-            sep_event_channel=self.event_channel,
-            mask_blur_factor=self.mask_blur_factor,
-            yuv_interpolation=self.yuv_interpolation,
-            sun_aug_prob=self.sun_aug_prob,
-            gs_patch_prob=self.grayscale_patch_prob,
-            glare_aug_prob=self.glare_aug_prob,
             p_sun=self.p_sun,
             p_glare=self.p_glare,
             p_flare=self.p_flare,

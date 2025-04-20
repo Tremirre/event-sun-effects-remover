@@ -91,7 +91,6 @@ class UNet(nn.Module):
         kernel_size: int = 3,
         with_fft: bool = False,
         out_channels: int = const.CHANNELS_OUT,
-        **kwargs,
     ) -> None:
         super().__init__()
         features = [in_channels]
@@ -183,6 +182,9 @@ class HalfUNetDiscriminator(nn.Module):
 
 
 class NoOp(nn.Module):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
     def forward(self, x):
         return x
 
@@ -191,3 +193,9 @@ MODELS = {
     "unet": UNet,
     "noop": NoOp,
 }
+
+
+def get_model(model_name: str, **kwargs) -> nn.Module:
+    if model_name not in MODELS:
+        raise ValueError(f"Model {model_name} not found")
+    return MODELS[model_name](**kwargs)

@@ -1,370 +1,100 @@
 import logging
 
-import neptune
 import pytorch_lightning as pl
 import pytorch_msssim as msssim
 import torch
 import torch.nn.functional as F
-import torchmetrics
 
-from src import const
-
-from ..loss import TVLoss, VGGLoss
-from .unet import HalfUNetDiscriminator, UNet
+from src.loss import TVLoss, VGGLoss
 
 logger = logging.getLogger(__name__)
 
 
 class BaseModule(pl.LightningModule):
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+    def _shared_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, stage: str
+    ):
         raise NotImplementedError
 
     def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self._shared_step(batch, "train")
+        return self._shared_step(batch, batch_idx, "train")
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self._shared_step(batch, "val")
+        return self._shared_step(batch, batch_idx, "val")
 
     def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        return self._shared_step(batch, "test")
+        return self._shared_step(batch, batch_idx, "test")
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-3)  # type: ignore
 
 
-class BaseInpaintingModule(BaseModule):
-    def __init__(self) -> None:
+class DetectorInpainterModule(BaseModule):
+    def __init__(
+        self,
+        detector: torch.nn.Module,
+        combiner: torch.nn.Module,
+        inpainter: torch.nn.Module,
+    ) -> None:
         super().__init__()
+        self.detector = detector
+        self.combiner = combiner
+        self.inpainter = inpainter
         self.tv_loss = TVLoss(2)
         self.vgg_loss = VGGLoss()
 
-    def loss(
-        self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
+    def detector_loss(
+        self, artifact_map: torch.Tensor, target: torch.Tensor
     ) -> torch.Tensor:
-        mae = F.l1_loss(y_hat, y)
-        ssim = 1 - msssim.ms_ssim(y_hat, y)
-        vgg_loss = self.vgg_loss(y_hat, y)
-        tv_loss = self.tv_loss(y_hat)
+        return F.huber_loss(artifact_map, target, delta=0.1)
+
+    def inpainter_loss(
+        self, inpaint_out: torch.Tensor, target: torch.Tensor, stage: str = ""
+    ) -> torch.Tensor:
+        mae = F.l1_loss(inpaint_out, target)
+        ssim = 1 - msssim.ms_ssim(inpaint_out, target)
+        vgg_loss = self.vgg_loss(inpaint_out, target)
+        tv_loss = self.tv_loss(inpaint_out)
         if stage:
             self.log(f"{stage}_mae", mae, on_epoch=True)
             self.log(f"{stage}_ssim", ssim, on_epoch=True)
-            self.log(f"{stage}_vgg", vgg_loss, on_epoch=True)
-            self.log(f"{stage}_tv", tv_loss, on_epoch=True)
+            self.log(f"{stage}_vgg_loss", vgg_loss, on_epoch=True)
+            self.log(f"{stage}_tv_loss", tv_loss, on_epoch=True)
         return 1.0 * mae + 0.5 * ssim + 0.1 * vgg_loss + 0.05 * tv_loss
 
-    def forward(self, x):
-        return x
-
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
-        x, y = batch
-        y_hat = self(x)
-        mask = x[:, -1]
-        mask = torch.stack([mask] * 3, dim=1)
-        y_hat_infill = (1 - mask) * y + mask * (y_hat.clone().detach())
-        loss = self.loss(y_hat, y, stage=stage)
-        infill_loss = self.loss(y_hat_infill, y, stage=f"{stage}_infill")
-        self.log(f"{stage}_loss", loss, on_epoch=True)
-        self.log(f"{stage}_infill_loss", infill_loss, on_epoch=True)
-        return {
-            "loss": loss,
-            "infill_loss": infill_loss,
-            "pred": y_hat,
-        }
-
-
-class BaseDetectionModule(BaseModule):
-    _BIN_THRESH = 0.1
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.test_preds = []
-        self.test_labels = []
-
-    def loss(
-        self, y_hat: torch.Tensor, y: torch.Tensor, stage: str = ""
-    ) -> torch.Tensor:
-        mse = F.mse_loss(y_hat, y)
-        if stage:
-            self.log(f"{stage}_mse", mse, on_epoch=True)
-        return mse
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x
-
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
-        x, y = batch
-        y_hat = self(x)
-        loss = self.loss(y_hat, y, stage=stage)
-        self.log(f"{stage}_loss", loss)
-        return {
-            "loss": loss,
-            "pred": y_hat,
-        }
-
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        _, y = batch
-        res = super().test_step(batch, batch_idx)
-        y_hat = res["pred"]
-        y_bin = (y > 0).float()
-        y_hat_bin = (y_hat > 0).float()
-
-        tp = (y_bin * y_hat_bin).sum()
-        tn = ((1 - y_bin) * (1 - y_hat_bin)).sum()
-        fp = ((1 - y_bin) * y_hat_bin).sum()
-        fn = (y_bin * (1 - y_hat_bin)).sum()
-
-        accuracy = (tp + tn) / (tp + tn + fp + fn + 1e-6)
-        precision = tp / (tp + fp + 1e-6)
-        recall = tp / (tp + fn + 1e-6)
-        f1 = 2 * (precision * recall) / (precision + recall + 1e-6)
-
-        self.log(f"test_t{self._BIN_THRESH:.0%}_accuracy", accuracy)
-        self.log(f"test_t{self._BIN_THRESH:.0%}_precision", precision)
-        self.log(f"test_t{self._BIN_THRESH:.0%}recall", recall)
-        self.log(f"test_t{self._BIN_THRESH:.0%}f1", f1)
-
-        self.test_preds.append(y_hat)
-        self.test_labels.append(y)
-
-        return res
-
-    def on_test_epoch_end(self) -> None:
-        self.test_preds = torch.cat(self.test_preds)
-        self.test_labels = torch.cat(self.test_labels)
-        y_bin = (self.test_labels > 0).int()
-        roc = torchmetrics.ROC(task="binary")
-        fpr, tpr, thresholds = roc(self.test_preds, y_bin)
-        roc_auc = torchmetrics.functional.auroc(self.test_preds, y_bin, task="binary")
-
-        # ROC Curve
-        fig, ax = roc.plot()
-        if isinstance(self.logger, pl.loggers.NeptuneLogger):
-            self.logger.experiment["test_roc_curve"].upload(
-                neptune.types.File.as_image(fig)
-            )
-        else:
-            self.logger.experiment.add_figure(
-                "ROC Curve",
-                fig,
-            )
-
-        # ROC AUC
-        self.log("test_roc_auc", roc_auc)
-
-        # Best Threshold
-        idx = torch.argmax(tpr - fpr)
-        best_thresh = thresholds[idx]
-        self.log("test_best_threshold", best_thresh)
-
-
-class UNetDetectionModule(BaseDetectionModule):
-    def __init__(self, **kwargs) -> None:
-        super().__init__()
-        self.unet = UNet(**kwargs, out_channels=1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.unet(x)
-        x = torch.sigmoid(x)
-        return x
-
-
-class NoOp(BaseInpaintingModule):
-    def __init__(self, **kwargs) -> None:
-        self.manual_backward = True
-        super().__init__()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x[:, :3]
-
-    def configure_optimizers(self):
-        return None
-
-    def backward(self, loss: torch.Tensor, *args, **kwargs) -> None:
-        pass
-
-
-class UNetModule(BaseInpaintingModule):
-    def __init__(
-        self,
-        **kwargs,
-    ) -> None:
-        super().__init__()
-        self.unet = UNet(**kwargs)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.unet(x)
-        x = torch.sigmoid(x)
-        return x
-
-
-class UNetInfillOnlyModule(UNetModule):
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
-        x, y = batch
-        y_hat = self(x)
-        mask = x[:, -1]
-        mask = torch.stack([mask] * 3, dim=1)
-        y_hat = torch.where(mask == 0, x[:, :3], y_hat)
-        loss = self.loss(y_hat, y, stage=stage)
-        self.log(f"{stage}_loss", loss)
-        return {
-            "loss": loss,
-            "pred": y_hat,
-        }
-
-
-class UNetDualWithFFT(BaseInpaintingModule):
-    def __init__(
-        self,
-        n_blocks: int,
-        block_depth: int,
-        in_channels: int,
-        kernel_size: int = 3,
-        **kwargs,
-    ) -> None:
-        super().__init__()
-        self.std_unet = UNet(n_blocks, block_depth, in_channels, kernel_size)
-        self.fft_unet = UNet(
-            n_blocks, block_depth, in_channels, kernel_size, with_fft=True
-        )
-        self.combine_conv = torch.nn.Conv2d(
-            const.CHANNELS_OUT * 2, const.CHANNELS_OUT, 1
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_copy = x.clone()
-        x_std = self.std_unet(x)
-        x_fft = self.fft_unet(x_copy)
-        x = torch.cat([x_std, x_fft], dim=1)
-        x = self.combine_conv(x)
-        x = torch.sigmoid(x)
-        return x
-
-
-class UNetTwoStage(BaseInpaintingModule):
-    def __init__(self, **kwargs) -> None:
-        super().__init__()
-        self.pre_unet = UNet(**kwargs)
-        kwargs["in_channels"] = const.CHANNELS_OUT
-        self.post_unet = UNet(**kwargs)
-        self.automatic_optimization = False
-
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mid = self.pre_unet(x)
-        mid = torch.sigmoid(mid)
-        final = self.post_unet(mid)
-        final = torch.sigmoid(final)
-        return mid, final
+        # input Bx4xHxW
+        # channels: BGR + Event Reconstruction
+        # output [BxHxW, Bx3xHxW]
+        # channels: BGR
 
-    def _shared_step(self, batch: tuple[torch.Tensor, torch.Tensor], stage: str):
+        artifact_map = F.sigmoid(self.detector(x[:, :3, :, :]))
+        inpaint_input = self.combiner(x, artifact_map)
+        inpaint_out = F.sigmoid(self.inpainter(inpaint_input))
+        return artifact_map, inpaint_out
+
+    def _shared_step(
+        self,
+        batch: tuple[torch.Tensor, torch.Tensor],
+        batch_idx: int,
+        stage: str,
+    ) -> dict[str, torch.Tensor]:
         x, y = batch
-        mid, final = self(x)
-        mid_loss = F.mse_loss(mid, y)
-
-        self.log(f"{stage}_mid_loss", mid_loss)
-        loss = self.loss(final, y, stage=stage)
-        self.log(f"{stage}_loss", loss)
-        if stage == "train":
-            optimizer = self.optimizers()
-            optimizer.zero_grad()
-            self.manual_backward(mid_loss, retain_graph=True)
-            self.manual_backward(loss)
-            optimizer.step()
+        artifact_map, inpaint_out = self(x)
+        detection_loss = self.detector_loss(artifact_map, y[:, 3, :, :])
+        inpaint_loss = self.inpainter_loss(inpaint_out, y[:, :3, :, :], stage=stage)
+        total_loss = detection_loss + inpaint_loss
+        self.log(f"{stage}_total_loss", total_loss, prog_bar=True, on_epoch=True)
+        self.log(f"{stage}_detection_loss", detection_loss, on_epoch=True)
+        self.log(f"{stage}_inpaint_loss", inpaint_loss, on_epoch=True)
 
         return {
-            "pred_mid": mid,
-            "loss": loss,
-            "pred": final,
+            "loss": total_loss,
+            "detection_loss": detection_loss,
+            "inpaint_loss": inpaint_loss,
+            "artifact_map": artifact_map,
+            "inpaint_out": inpaint_out,
         }
 
-
-class GANInpainter(BaseInpaintingModule):
-    def __init__(
-        self,
-        gan_adv_weight: float,
-        **kwargs,
-    ) -> None:
-        super().__init__()
-        self.generator = UNet(**kwargs)
-        kwargs["in_channels"] = const.CHANNELS_OUT
-        self.discriminator = HalfUNetDiscriminator(**kwargs)
-        self.automatic_optimization = False
-        self.gan_adv_weight = gan_adv_weight
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.generator(x)
-        return torch.sigmoid(x)
-
-    def adv_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return F.binary_cross_entropy_with_logits(y_hat, y)
-
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int):
-        x, y = batch
-        g_opt, d_opt = self.optimizers()  # type: ignore
-
-        # Generate fake image
-        y_hat = self(x)
-
-        # Real and Fake Labels
-        real_labels = torch.ones((x.size(0), 1), device=self.device)
-        fake_labels = torch.zeros((x.size(0), 1), device=self.device)
-
-        # --- Step 1: Train Discriminator ---
-        d_real = self.discriminator(y)
-        d_fake = self.discriminator(y_hat.detach())
-
-        d_loss_real = self.adv_loss(d_real, real_labels)
-        d_loss_fake = self.adv_loss(d_fake, fake_labels)
-        d_loss = (d_loss_real + d_loss_fake) / 2
-
-        self.toggle_optimizer(d_opt)
-        self.manual_backward(d_loss)
-        d_opt.step()
-        d_opt.zero_grad()
-        self.untoggle_optimizer(d_opt)
-
-        # --- Step 2: Train Generator ---
-        d_fake = self.discriminator(y_hat)  # Re-evaluate fake sample
-        g_loss_adv = self.adv_loss(d_fake, real_labels)  # Generator tries to fool D
-
-        # Reconstruction loss
-        rec_loss = self.loss(y_hat, y, stage="traing")
-
-        # Total Generator Loss
-        g_loss = rec_loss + self.gan_adv_weight * g_loss_adv
-
-        self.toggle_optimizer(g_opt)
-        self.manual_backward(g_loss)
-        g_opt.step()
-        g_opt.zero_grad()
-        self.untoggle_optimizer(g_opt)
-
-        # Logging
-        self.log("train_g_loss", g_loss)
-        self.log("train_d_loss", d_loss)
-        self.log("train_rec_loss", rec_loss)
-        self.log("train_adv_loss", g_loss_adv)
-
-        return {"loss": g_loss, "d_loss": d_loss, "pred": y_hat}
-
     def configure_optimizers(self):
-        g_opt = torch.optim.Adam(  # type: ignore
-            self.generator.parameters(), lr=1e-4, betas=(0.5, 0.999)
-        )
-        d_opt = torch.optim.Adam(  # type: ignore
-            self.discriminator.parameters(), lr=1e-4, betas=(0.5, 0.999)
-        )
-        return [g_opt, d_opt], []
-
-
-INPAINT_NAMES = {
-    "unet": UNetModule,
-    "unet_infill_only": UNetInfillOnlyModule,
-    "unet_dual": UNetDualWithFFT,
-    "unet_two_stage": UNetTwoStage,
-    "gan": GANInpainter,
-    "noop": NoOp,
-}
-
-DETECTION_NAMES = {
-    "unet": UNetDetectionModule,
-}
+        return torch.optim.Adam(self.parameters(), lr=1e-4)  # type: ignore

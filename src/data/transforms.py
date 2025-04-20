@@ -4,125 +4,95 @@ import pathlib
 import cv2
 import numpy as np
 
-from . import mask
-
 logger = logging.getLogger(__name__)
 
 
-class RandomizedBrightnessScaler:
+class EventTransform:
+    def process_event(
+        self, event_img: np.ndarray, event_mask: np.ndarray
+    ) -> np.ndarray:
+        raise NotImplementedError
+
+    def __call__(self, img: np.ndarray) -> np.ndarray:
+        if img.shape[-1] == 3:
+            return img
+        event_img = self.process_event(img[:, :, 3], img[:, :, 4])
+        img[:, :, 3] = event_img
+        return img
+
+
+class RandomizedEventBrightnessScaler(EventTransform):
     def __init__(self, min_factor: float, max_factor: float):
         self.min_factor = min_factor
         self.max_factor = max_factor
 
-    def __call__(self, img_gs: np.ndarray) -> np.ndarray:
+    def process_event(
+        self, event_img: np.ndarray, event_mask: np.ndarray
+    ) -> np.ndarray:
         factor = np.random.uniform(self.min_factor, self.max_factor)
-        return np.clip(255 * (img_gs / 255) ** factor, 0, 255).astype(np.uint8)
+        return np.clip(255 * (event_img / 255) ** factor, 0, 255).astype(np.uint8)
 
 
-class RandomizedContrastScaler:
+class RandomizedEventContrastScaler(EventTransform):
     def __init__(self, min_factor: float, max_factor: float):
         self.min_factor = min_factor
         self.max_factor = max_factor
 
-    def __call__(self, img_gs: np.ndarray) -> np.ndarray:
+    def process_event(
+        self, event_img: np.ndarray, event_mask: np.ndarray
+    ) -> np.ndarray:
         factor = np.random.uniform(self.min_factor, self.max_factor)
-        min_gs, max_gs = img_gs.min(), img_gs.max()
+        min_gs, max_gs = event_img.min(), event_img.max()
         mean_gs = min_gs / 2 + max_gs / 2
-        img_gs = mean_gs + (img_gs - mean_gs) * factor
-        return np.clip(img_gs, 0, 255).astype(np.uint8)
+        event_img = mean_gs + (event_img - mean_gs) * factor
+        return np.clip(event_img, 0, 255).astype(np.uint8)
 
 
-class RandomizedSunAdder:
+class RandomizedEventSunAdder(EventTransform):
     def __init__(self, prob: float, min_radius: int = 3, max_radius: int = 5):
         self.prob = prob
         self.min_radius = min_radius
         self.max_radius = max_radius
         assert 0 <= prob <= 1, "Probability must be between 0 and 1"
 
-    def __call__(self, gs_with_mask: np.ndarray) -> np.ndarray:
-        img_gs = gs_with_mask[:, :, 0]
+    def process_event(
+        self, event_img: np.ndarray, event_mask: np.ndarray
+    ) -> np.ndarray:
         if np.random.rand() > self.prob:
-            return img_gs[:, :, np.newaxis]
+            return event_img
 
-        mask = gs_with_mask[:, :, 1]
+        mask = event_mask.copy()
         mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=1)
         candidates = np.argwhere(mask > 0)
         if len(candidates) == 0:
-            return img_gs[:, :, np.newaxis]
+            return event_img
 
         back_strength = np.random.randint(20, 51)
         center = tuple(candidates[np.random.randint(len(candidates))])[::-1]
         radius = np.random.randint(self.min_radius, self.max_radius + 1)
-        dec_canvas = np.zeros_like(img_gs)
+        dec_canvas = np.zeros_like(event_img)
         dec_canvas = cv2.circle(dec_canvas, center, 16 * radius, back_strength, -1)  # type: ignore
         dec_canvas = cv2.circle(dec_canvas, center, 4 * radius, 0, -1)  # type: ignore
         dec_canvas = cv2.GaussianBlur(dec_canvas, (31, 31), 15)
 
-        add_canvas = np.zeros_like(img_gs)
+        add_canvas = np.zeros_like(event_img)
         add_canvas = cv2.circle(add_canvas, center, radius, 255, -1)  # type: ignore
         add_canvas = cv2.GaussianBlur(add_canvas, (5, 5), 5)
 
-        img_gs = cv2.subtract(img_gs, dec_canvas)
-        img_gs = cv2.add(img_gs, add_canvas)
-        return img_gs[:, :, np.newaxis]
+        event_img = cv2.subtract(event_img, dec_canvas)
+        event_img = cv2.add(event_img, add_canvas)
+        event_img = np.clip(event_img, 0, 255).astype(np.uint8)
+        return event_img
 
 
-class RandomizedMaskAwareGrayscaleAdder:
-    def __init__(self, prob: float, min_radius: int = 40, max_radius: int = 60):
-        self.prob = prob
-        self.min_radius = min_radius
-        self.max_radius = max_radius
-        assert 0 <= prob <= 1, "Probability must be between 0 and 1"
-
-    def __call__(self, bgrm: np.ndarray) -> np.ndarray:
-        bgr = bgrm[:, :, :3]
-        if np.random.rand() > self.prob:
-            return bgrm
-
-        mask = bgrm[:, :, 3]
-        original_mask = mask.copy()
-        mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=1)
-        candidates = np.argwhere(mask > 0)
-        if len(candidates) == 0:
-            return bgrm
-
-        logger.debug("Adding grayscale")
-        center = tuple(candidates[np.random.randint(len(candidates))])[::-1]
-        radius = np.random.randint(self.min_radius, self.max_radius + 1)
-        gs = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-        gs = np.repeat(gs[:, :, np.newaxis], 3, axis=-1)
-        comb_mask = np.zeros_like(gs, dtype=np.float32)
-        comb_mask = cv2.circle(comb_mask, center, radius, (1, 1, 1), -1)  # type: ignore
-        comb_mask = cv2.GaussianBlur(comb_mask, (31, 31), 15)
-        combined = comb_mask * gs + (1 - comb_mask) * bgr
-        combined = combined.clip(0, 255).astype(np.uint8)
-        combined = np.concatenate([combined, original_mask[:, :, np.newaxis]], axis=-1)
-        return combined
-
-
-class RandomizedMaskAwareGlareAdder:
-    def __init__(self, prob: float, min_expand: int = 1, max_expand: int = 5) -> None:
-        self.prob = prob
-        self.min_expand = min_expand
-        self.max_expand = max_expand
-
-    def __call__(self, bgrm: np.ndarray) -> np.ndarray:
-        bgr = bgrm[:, :, :3]
-        if np.random.rand() > self.prob:
-            return bgrm
-
-        logger.debug("Adding glare")
-        mask = bgrm[:, :, 3]
-        original_mask = mask.copy()
-        expansion = np.random.randint(self.min_expand, self.max_expand + 1)
-        mask = cv2.dilate(mask, np.ones((3, 3), np.uint8), iterations=expansion)
-        mask = cv2.GaussianBlur(mask, (51, 51), 25)
-        mask = np.repeat(mask[:, :, np.newaxis], 3, axis=-1)
-        overlit_bgr = cv2.add(bgr, mask)
-        overlit_bgrm = np.concatenate(
-            [overlit_bgr, original_mask[:, :, np.newaxis]], axis=-1
+class EventMaskChannelRemover:
+    def __call__(self, img: np.ndarray) -> np.ndarray:
+        if img.shape[-1] == 3:
+            return img
+        assert img.shape[-1] == 6, (
+            "Expected 6 channels (BGR + event + event mask + artifact mask)"
         )
-        return overlit_bgrm
+        return np.concatenate([img[:, :, :4], img[:, :, 5:6]], axis=-1)
 
 
 class RadnomizedGaussianBlur:
@@ -131,42 +101,12 @@ class RadnomizedGaussianBlur:
         self.max_sigma = max_sigma
 
     def __call__(self, img: np.ndarray) -> np.ndarray:
+        if img.shape[-1] == 3:
+            return img
         sigma = np.random.uniform(self.min_sigma, self.max_sigma)
-        res = cv2.GaussianBlur(img, (5, 5), sigma)
-        return res[:, :, np.newaxis]
-
-
-class RandomizedMasker:
-    def __init__(
-        self,
-        gparams: list[dict] | None = None,
-        fix_by_idx: bool = False,
-    ):
-        if gparams is None:
-            gparams = [{"max_centers": 5}]
-        if len(gparams) > 1:
-            assert not fix_by_idx, "Cannot fix by idx with multiple mask generators"
-        self.generator = mask.DilatingMaskGenerator(**gparams.pop(0))
-        self.fix_by_idx = fix_by_idx
-        self.gparams = gparams
-        self.cache = {}
-
-    def progress(self) -> None:
-        if len(self.gparams) == 0:
-            return
-        self.generator = mask.DilatingMaskGenerator(**self.gparams.pop(0))
-
-    def __call__(
-        self, idx: int, bgr: np.ndarray, event_mask: np.ndarray, event: np.ndarray
-    ) -> np.ndarray:
-        height, width = bgr.shape[:2]
-        if self.fix_by_idx and idx in self.cache:
-            return self.cache[idx]
-        mask = self.generator(height, width)
-        mask[event_mask == 0] = 0
-        if self.fix_by_idx:
-            self.cache[idx] = mask
-        return mask
+        bgr_blurred = cv2.GaussianBlur(img[:, :, :3], (5, 5), sigma)
+        img[:, :, :3] = bgr_blurred
+        return img
 
 
 class DiffIntensityMasker:
@@ -211,7 +151,7 @@ class BaseLightArtifactAugmenter:
         aug_map = self.generate_map(img[:, :, :3].shape)
         img[:, :, :3] = cv2.add(img[:, :, :3], aug_map)  # type: ignore
         aug_map = cv2.cvtColor(aug_map, cv2.COLOR_BGR2GRAY)
-        img[:, :, 3] = cv2.add(img[:, :, 3], aug_map)
+        img[:, :, -1] = cv2.add(img[:, :, -1], aug_map)
         return img
 
 
@@ -436,12 +376,14 @@ class CompositeLightArtifactAugmenter:
         augmenters: list[BaseLightArtifactAugmenter],
         probs: list[float],
         fix_by_idx: bool = False,
+        target_binarization: bool = False,
     ):
         assert len(augmenters) == len(probs), (
             "Augmenters and probs must have same length"
         )
         self.augmenters = augmenters
         self.probs = probs
+        self.target_binarization = target_binarization
         self.fix_by_idx = fix_by_idx
         self.cache = {}
 
@@ -449,10 +391,10 @@ class CompositeLightArtifactAugmenter:
         if self.fix_by_idx and idx in self.cache:
             return self.cache[idx]
 
+        np.random.seed(idx)
         for augmenter, prob in zip(self.augmenters, self.probs, strict=True):
             if np.random.rand() < prob:
                 img = augmenter(img)
-
-        if self.fix_by_idx:
-            self.cache[idx] = img
+        if self.target_binarization:
+            img[:, :, -1] = np.where(img[:, :, -1] > 0, 255, 0)
         return img

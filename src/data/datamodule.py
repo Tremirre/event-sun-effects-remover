@@ -20,7 +20,7 @@ class BaseDataModule(pl.LightningDataModule):
         train_paths: list[pathlib.Path],
         val_paths: list[pathlib.Path],
         test_paths: list[pathlib.Path],
-        ref_paths: list[pathlib.Path] = None,
+        ref_paths: list[pathlib.Path] | None = None,
         num_workers: int = 0,
         batch_size: int = 32,
         frac_used: float = 1,
@@ -99,100 +99,7 @@ class BaseDataModule(pl.LightningDataModule):
         )
 
 
-class EventDataModule(BaseDataModule):
-    def __init__(
-        self,
-        ref_threshold: int = 100,
-        sep_event_channel: bool = False,
-        yuv_interpolation: bool = False,
-        mask_blur_factor: int = 0,
-        sun_aug_prob: float = 0,
-        gs_patch_prob: float = 0,
-        glare_aug_prob: float = 0,
-        **kwargs,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.ref_threshold = ref_threshold
-        self.yuv_interpolation = yuv_interpolation
-        self.mask_blur_factor = mask_blur_factor
-        self.sun_aug_prob = sun_aug_prob
-        self.gs_patch_prob = gs_patch_prob
-        self.glare_aug_prob = glare_aug_prob
-        self.sep_event_channel = sep_event_channel
-        logger.info("Initialized Event Data module")
-
-    def setup(self, stage: str) -> None:
-        logger.info(f"Setting up datasets for stage: {stage}")
-        if stage == "fit" or stage is None:
-            self.train_dataset = dataset.BGREMDataset(
-                self.train_paths,
-                masker=transforms.RandomizedMasker(),
-                bgr_transform=T.Compose(
-                    [
-                        T.ToPILImage(),
-                        T.ToTensor(),
-                    ]
-                ),
-                event_transform=T.Compose(
-                    [
-                        transforms.RandomizedSunAdder(self.sun_aug_prob),
-                        transforms.RandomizedBrightnessScaler(0.5, 1.5),
-                        transforms.RandomizedContrastScaler(0.5, 1.5),
-                    ]
-                ),
-                masked_bgr_transform=T.Compose(
-                    [
-                        transforms.RandomizedMaskAwareGlareAdder(self.glare_aug_prob),
-                        transforms.RandomizedMaskAwareGrayscaleAdder(
-                            self.gs_patch_prob
-                        ),
-                    ]
-                ),
-                separate_event_channel=self.sep_event_channel,
-                blur_factor=self.mask_blur_factor,
-                yuv_interpolation=self.yuv_interpolation,
-            )
-            self.val_dataset = dataset.BGREMDataset(
-                self.val_paths,
-                masker=transforms.RandomizedMasker(fix_by_idx=True),
-                bgr_transform=T.Compose(
-                    [
-                        T.ToTensor(),
-                    ]
-                ),
-                separate_event_channel=self.sep_event_channel,
-                blur_factor=self.mask_blur_factor,
-                yuv_interpolation=self.yuv_interpolation,
-            )
-        if stage == "test" or stage is None:
-            self.test_dataset = dataset.BGREMDataset(
-                self.test_paths,
-                masker=transforms.RandomizedMasker(fix_by_idx=True),
-                bgr_transform=T.Compose(
-                    [
-                        T.ToTensor(),
-                    ]
-                ),
-                separate_event_channel=self.sep_event_channel,
-                blur_factor=self.mask_blur_factor,
-                yuv_interpolation=self.yuv_interpolation,
-            )
-        if stage == "ref" or stage is None:
-            self.ref_dataset = dataset.BGREMDataset(
-                self.ref_paths,
-                masker=transforms.DiffIntensityMasker(self.ref_threshold),
-                bgr_transform=T.Compose(
-                    [
-                        T.ToTensor(),
-                    ]
-                ),
-                separate_event_channel=self.sep_event_channel,
-                blur_factor=self.mask_blur_factor,
-                yuv_interpolation=self.yuv_interpolation,
-            )
-
-
-class ArtifactDetectionDataModule(BaseDataModule):
+class JointDataModule(BaseDataModule):
     def __init__(
         self,
         p_flare: float = 0.0,
@@ -208,7 +115,7 @@ class ArtifactDetectionDataModule(BaseDataModule):
         self.p_glare = p_glare
         self.p_hq_flare = p_hq_flare
         self.target_binarization = target_binarization
-        logger.info("Initialized Artifact Detection Data module")
+        logger.info("Initialized Joint Data module")
 
     def get_augmenter(
         self, fix_by_idx: bool = False
@@ -224,55 +131,53 @@ class ArtifactDetectionDataModule(BaseDataModule):
             ],
             probs=[self.p_flare, self.p_glare, self.p_sun, self.p_hq_flare],
             fix_by_idx=fix_by_idx,
+            target_binarization=self.target_binarization,
         )
 
     def setup(self, stage: str) -> None:
         logger.info(f"Setting up datasets for stage: {stage}")
         if stage == "fit" or stage is None:
-            self.train_dataset = dataset.BGRArtifcatDataset(
+            self.train_dataset = dataset.BGREADataset(
                 self.train_paths,
                 transform=T.Compose(
                     [
+                        transforms.RandomizedEventBrightnessScaler(0.5, 1.5),
+                        transforms.RandomizedEventContrastScaler(0.5, 1.5),
+                        transforms.RandomizedEventSunAdder(0.05),
+                        transforms.EventMaskChannelRemover(),
                         T.ToTensor(),
                     ]
                 ),
                 augmenter=self.get_augmenter(fix_by_idx=False),
-                binarize=self.target_binarization,
             )
-            self.val_dataset = dataset.BGRArtifcatDataset(
+            self.val_dataset = dataset.BGREADataset(
                 self.val_paths,
                 transform=T.Compose(
                     [
+                        transforms.EventMaskChannelRemover(),
                         T.ToTensor(),
                     ]
                 ),
                 augmenter=self.get_augmenter(fix_by_idx=True),
-                binarize=self.target_binarization,
             )
         if stage == "test" or stage is None:
-            self.test_dataset = dataset.BGRArtifcatDataset(
+            self.test_dataset = dataset.BGREADataset(
                 self.test_paths,
                 transform=T.Compose(
                     [
+                        transforms.EventMaskChannelRemover(),
                         T.ToTensor(),
                     ]
                 ),
-                augmenter=transforms.CompositeLightArtifactAugmenter(
-                    augmenters=[],
-                    probs=[],
-                ),
-                test_mode=True,
+                augmenter=self.get_augmenter(fix_by_idx=True),
             )
         if stage == "ref" or stage is None:
-            self.ref_dataset = dataset.BGRArtifcatDataset(
+            self.ref_dataset = dataset.BGREADataset(
                 self.ref_paths,
                 transform=T.Compose(
                     [
+                        transforms.EventMaskChannelRemover(),
                         T.ToTensor(),
                     ]
-                ),
-                augmenter=transforms.CompositeLightArtifactAugmenter(
-                    augmenters=[],
-                    probs=[],
                 ),
             )

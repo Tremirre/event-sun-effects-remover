@@ -14,7 +14,7 @@ class EventTransform:
         raise NotImplementedError
 
     def __call__(self, img: np.ndarray) -> np.ndarray:
-        if img.shape[-1] == 3:
+        if img.shape[-1] < 5:
             return img
         event_img = self.process_event(img[:, :, 3], img[:, :, 4])
         img[:, :, 3] = event_img
@@ -87,12 +87,9 @@ class RandomizedEventSunAdder(EventTransform):
 
 class EventMaskChannelRemover:
     def __call__(self, img: np.ndarray) -> np.ndarray:
-        if img.shape[-1] == 3:
+        if img.shape[-1] < 5:
             return img
-        assert (
-            img.shape[-1] == 6
-        ), "Expected 6 channels (BGR + event + event mask + artifact mask)"
-        return np.concatenate([img[:, :, :4], img[:, :, 5:6]], axis=-1)
+        return img[:, :, :4]
 
 
 class RadnomizedGaussianBlur:
@@ -147,12 +144,14 @@ class BaseLightArtifactAugmenter:
     def generate_map(self, shape: tuple[int, int, int]) -> np.ndarray:
         raise NotImplementedError
 
-    def __call__(self, img: np.ndarray) -> np.ndarray:
+    def __call__(
+        self, img: np.ndarray, cumulative_map: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         aug_map = self.generate_map(img[:, :, :3].shape)
         img[:, :, :3] = cv2.add(img[:, :, :3], aug_map)  # type: ignore
         aug_map = cv2.cvtColor(aug_map, cv2.COLOR_BGR2GRAY)
-        img[:, :, -1] = cv2.add(img[:, :, -1], aug_map)
-        return img
+        cumulative_map = cv2.add(cumulative_map, aug_map)
+        return img, cumulative_map
 
 
 class VeilingGlareAdder(BaseLightArtifactAugmenter):
@@ -387,17 +386,15 @@ class CompositeLightArtifactAugmenter:
         self.fix_by_idx = fix_by_idx
         self.cache = {}
 
-    def __call__(self, img: np.ndarray, idx: int) -> np.ndarray:
+    def __call__(self, img: np.ndarray, idx: int) -> tuple[np.ndarray, np.ndarray]:
         if self.fix_by_idx and idx in self.cache:
             return self.cache[idx]
 
-        # add new channel for artifact mask
-        if img.shape[-1] != 6:
-            img = np.concatenate([img, np.zeros_like(img[:, :, :1])], axis=-1)
+        artifact_map = np.zeros_like(img[:, :, 3], dtype=np.uint8)
         np.random.seed(idx)
         for augmenter, prob in zip(self.augmenters, self.probs, strict=True):
             if np.random.rand() < prob:
-                img = augmenter(img)
+                img, artifact_map = augmenter(img, artifact_map)
         if self.target_binarization:
-            img[:, :, -1] = np.where(img[:, :, -1] > 0, 255, 0)
-        return img
+            artifact_map = (artifact_map > 0).astype(np.uint8) * 255
+        return img, artifact_map

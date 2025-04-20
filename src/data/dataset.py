@@ -21,7 +21,7 @@ class Augmenter(typing.Protocol):
         self,
         img: np.ndarray,
         idx: int,
-    ) -> np.ndarray: ...
+    ) -> tuple[np.ndarray, np.ndarray]: ...
 
 
 class BGREADataset(torch.utils.data.Dataset):
@@ -40,8 +40,8 @@ class BGREADataset(torch.utils.data.Dataset):
         return len(self.img_paths)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        # x -> BGR + Event Reconstruction + Light Augmentation Mask
-        # y -> artifact free image
+        # x -> BGR + Event Reconstruction
+        # y -> BGR + Artifact Map
         img = np.load(self.img_paths[idx])
 
         # img will be 4 channel (if event mask is implicitly the whole image) or 5 channel
@@ -49,12 +49,15 @@ class BGREADataset(torch.utils.data.Dataset):
             img = np.concatenate([img, np.ones_like(img[:, :, :1]) * 255], axis=-1)
 
         assert img.shape[2] == 5, "Expected 5 channels"
-        bgr = img[:, :, :3].copy()
+        out = img[:, :, :3].copy()
         if self.augmenter is not None:
-            img = self.augmenter(img, idx)
+            img, art_map = self.augmenter(img, idx)
+        else:
+            art_map = np.zeros_like(img[:, :, 3])
+        out = np.concatenate([out, art_map[:, :, np.newaxis]], axis=-1)
 
         x = self.transform(img)
-        y = self.transform(bgr)
+        y = self.transform(out)
         x = typing.cast(torch.Tensor, x)
         y = typing.cast(torch.Tensor, y)
         return x, y

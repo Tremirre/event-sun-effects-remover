@@ -51,7 +51,7 @@ class BGREADataset(torch.utils.data.Dataset):
         assert img.shape[2] == 5, "Expected 5 channels"
         bgr = img[:, :, :3].copy()
         if self.augmenter is not None:
-            self.augmenter(img, idx)
+            img = self.augmenter(img, idx)
 
         x = self.transform(img)
         y = self.transform(bgr)

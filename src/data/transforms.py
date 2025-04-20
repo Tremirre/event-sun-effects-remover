@@ -89,9 +89,9 @@ class EventMaskChannelRemover:
     def __call__(self, img: np.ndarray) -> np.ndarray:
         if img.shape[-1] == 3:
             return img
-        assert img.shape[-1] == 6, (
-            "Expected 6 channels (BGR + event + event mask + artifact mask)"
-        )
+        assert (
+            img.shape[-1] == 6
+        ), "Expected 6 channels (BGR + event + event mask + artifact mask)"
         return np.concatenate([img[:, :, :4], img[:, :, 5:6]], axis=-1)
 
 
@@ -378,9 +378,9 @@ class CompositeLightArtifactAugmenter:
         fix_by_idx: bool = False,
         target_binarization: bool = False,
     ):
-        assert len(augmenters) == len(probs), (
-            "Augmenters and probs must have same length"
-        )
+        assert len(augmenters) == len(
+            probs
+        ), "Augmenters and probs must have same length"
         self.augmenters = augmenters
         self.probs = probs
         self.target_binarization = target_binarization
@@ -391,6 +391,9 @@ class CompositeLightArtifactAugmenter:
         if self.fix_by_idx and idx in self.cache:
             return self.cache[idx]
 
+        # add new channel for artifact mask
+        if img.shape[-1] != 6:
+            img = np.concatenate([img, np.zeros_like(img[:, :, :1])], axis=-1)
         np.random.seed(idx)
         for augmenter, prob in zip(self.augmenters, self.probs, strict=True):
             if np.random.rand() < prob:

@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 import pathlib
+import re
 
 import numpy as np
 import pytorch_lightning as pl
@@ -14,13 +15,19 @@ from src.model.combiners import get_combiner
 from src.model.models import get_model
 from src.model.modules import DetectorInpainterModule
 
+NUMBER_REGEX = re.compile(r"^\d+(\.\d+)?$")
+
 
 @dataclasses.dataclass
 class Config:
+    ref_dir: pathlib.Path
+    train_dir: pathlib.Path
+    val_dir: pathlib.Path
+    test_dir: pathlib.Path
     batch_size: int
     max_epochs: int
     frac_used: float
-    detect_model: str
+    detector_model: str
     combiner_model: str
     inpainter_model: str
     detector_kwargs: dict[str, str | int | bool] = dataclasses.field(
@@ -38,15 +45,25 @@ class Config:
     log_tensorboard: bool = False
     run_tags: str = "default"
     save: bool = False
-    ref_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
-    train_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
-    val_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
-    test_dir: pathlib.Path = dataclasses.field(default_factory=lambda: const.REF_DIR)
     p_sun: float = 0.5
     p_glare: float = 0.5
     p_flare: float = 0.5
     p_hq_flare: float = 0.5
     target_binarization: bool = False
+
+    def serialized_kwargs(self, field: str) -> str:
+        kwargs = getattr(self, field)
+        if not kwargs:
+            return ""
+        serialized = []
+        for key, value in kwargs.items():
+            if isinstance(value, bool):
+                serialized.append(f"{key}={str(value).lower()}")
+            elif isinstance(value, (int, float)):
+                serialized.append(f"{key}={value}")
+            else:
+                serialized.append(f"{key}={value}")
+        return ",".join(serialized)
 
     def to_json_dict(self) -> dict[str, object]:
         serialized = dataclasses.asdict(self)
@@ -58,10 +75,58 @@ class Config:
                 serialized_clean[key] = value
         return serialized_clean
 
+    @staticmethod
+    def parse_kwargs(kwargs: str) -> dict[str, str | int | bool]:
+        if kwargs == "":
+            return {}
+        try:
+            raw_dict = dict(pair.split("=") for pair in kwargs.split(","))
+            parsed_dict = {}
+            for key, value in raw_dict.items():
+                if value.lower() == "true":
+                    parsed_dict[key] = True
+                elif value.lower() == "false":
+                    parsed_dict[key] = False
+                elif value.isdigit():
+                    parsed_dict[key] = int(value)
+                elif NUMBER_REGEX.match(value):
+                    parsed_dict[key] = float(value)
+                else:
+                    parsed_dict[key] = value
+            return parsed_dict
+        except ValueError:
+            raise ValueError(
+                "Invalid format for kwargs. Expected 'key1=value1,key2=value2,...'"
+            )
+
     @classmethod
     def from_args(cls):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+        parser.add_argument(
+            "--ref-dir",
+            type=pathlib.Path,
+            help="Path to reference directory",
+            default=const.REF_DIR,
+        )
+        parser.add_argument(
+            "--train-dir",
+            type=pathlib.Path,
+            help="Path to train directory",
+            default=const.TRAIN_DIR,
+        )
+        parser.add_argument(
+            "--val-dir",
+            type=pathlib.Path,
+            help="Path to val directory",
+            default=const.VAL_DIR,
+        )
+        parser.add_argument(
+            "--test-dir",
+            type=pathlib.Path,
+            help="Path to test directory",
+            default=const.TEST_DIR,
+        )
+        parser.add_argument("--batch-size", type=int, default=8, help="Batch size")
         parser.add_argument(
             "--max-epochs", type=int, default=10, help="Number of epochs"
         )
@@ -69,36 +134,39 @@ class Config:
             "--frac-used", type=float, default=1, help="Fraction of data used"
         )
         parser.add_argument(
-            "--detect-model",
+            "--detector-model",
             type=str,
             help="Model for the detector",
+            required=True,
         )
         parser.add_argument(
             "--combiner-model",
             type=str,
             help="Model for the combiner",
+            required=True,
         )
         parser.add_argument(
             "--inpainter-model",
             type=str,
             help="Model for the inpainter",
+            required=True,
         )
         parser.add_argument(
             "--detector-kwargs",
-            type=lambda x: eval(x),
-            default="{}",
+            type=lambda x: cls.parse_kwargs(x),
+            default="",
             help="Additional kwargs for the detector model",
         )
         parser.add_argument(
             "--combiner-kwargs",
-            type=lambda x: eval(x),
-            default="{}",
+            type=lambda x: cls.parse_kwargs(x),
+            default="",
             help="Additional kwargs for the combiner model",
         )
         parser.add_argument(
             "--inpainter-kwargs",
-            type=lambda x: eval(x),
-            default="{}",
+            type=lambda x: cls.parse_kwargs(x),
+            default="",
             help="Additional kwargs for the inpainter model",
         )
         parser.add_argument(
@@ -120,26 +188,6 @@ class Config:
             type=str,
             default="**/*.npy",
             help="Glob pattern for train image files",
-        )
-        parser.add_argument(
-            "--ref-dir",
-            type=pathlib.Path,
-            help="Path to reference directory",
-        )
-        parser.add_argument(
-            "--train-dir",
-            type=pathlib.Path,
-            help="Path to train directory",
-        )
-        parser.add_argument(
-            "--val-dir",
-            type=pathlib.Path,
-            help="Path to val directory",
-        )
-        parser.add_argument(
-            "--test-dir",
-            type=pathlib.Path,
-            help="Path to test directory",
         )
         parser.add_argument(
             "--p-sun",
@@ -207,7 +255,7 @@ class Config:
 
     def get_model(self) -> pl.LightningModule:
         detector = get_model(
-            self.detect_model,
+            self.detector_model,
             **self.detector_kwargs,
             in_channels=3,
             out_channels=1,

@@ -46,7 +46,7 @@ class DetectorInpainterModule(BaseModule):
     def detector_loss(
         self, artifact_map: torch.Tensor, target: torch.Tensor
     ) -> torch.Tensor:
-        return F.huber_loss(artifact_map, target, delta=0.1)
+        return F.huber_loss(artifact_map.squeeze(1), target, delta=0.1)
 
     def inpainter_loss(
         self, inpaint_out: torch.Tensor, target: torch.Tensor, stage: str = ""

@@ -180,3 +180,14 @@ class HalfUNetDiscriminator(nn.Module):
             x = F.max_pool2d(x, 2)
         x = self.flat_section(x)
         return x
+
+
+class NoOp(nn.Module):
+    def forward(self, x):
+        return x
+
+
+MODELS = {
+    "unet": UNet,
+    "noop": NoOp,
+}

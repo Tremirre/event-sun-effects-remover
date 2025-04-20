@@ -12,6 +12,7 @@ from pytorch_lightning import loggers
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 from src import utils
+from src.callbacks import image_loggers
 from src.config import Config
 
 RUN_IDX = np.random.randint(0, 2**31)
@@ -32,13 +33,13 @@ if __name__ == "__main__":
     model = config.get_model()
     run_logger = config.get_logger()
     profiler = config.get_profiler()
-    callbacks: list[pl.Callback] = []  # [image_loggers.ValBatchImageLogger()]
+    callbacks: list[pl.Callback] = [image_loggers.ValBatchImageLogger()]
     ref_img_logger = None
     if dm.ref_paths:
         dm.setup("ref")
         logger.info("Enabling reference image logging")
-        # ref_img_logger = image_loggers.ReferenceImageLogger(dm.ref_dataloader())
-        # callbacks.append(ref_img_logger)
+        ref_img_logger = image_loggers.ReferenceImageLogger(dm.ref_dataloader())
+        callbacks.append(ref_img_logger)
 
     model_chkp = None
     if config.save:
@@ -96,6 +97,6 @@ if __name__ == "__main__":
             run_logger.experiment["model"].upload(best_model_path)
         if ref_img_logger:
             logger.info("Logging best model reference images (epoch %d)", best_epoch)
-            # ref_img_logger.log_ref_images(trainer, model)
+            ref_img_logger.log_ref_images(trainer, model)
 
     run_logger.experiment.stop()

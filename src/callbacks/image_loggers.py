@@ -24,24 +24,22 @@ class ReferenceImageLogger(pl.Callback):
                 x, y = batch
                 x = x.to(pl_module.device)
                 y = y.to(pl_module.device)
-                y_hat = pl_module(x)
-                y_bgr = y[:, :3]
-                y_hat_bgr = y_hat[:, :3]
-                mask = x[:, -1]
-                mask = torch.stack([mask] * 3, dim=1)
-                y_hat = ((1 - mask) * y_bgr + mask * y_hat_bgr).clamp(0, 1)
-                if isinstance(y_hat, tuple):
-                    mid_hat, y_hat = y_hat
-                    log_image_batch(
-                        x,
-                        mid_hat,
-                        y,
-                        trainer.logger,
-                        trainer.global_step,
-                        f"ref_{i}_mid",
-                    )
+                est_artifact_map, bgr_inpaint = pl_module(x)
+                artifact_map = y[:, 3:4]
+                bgr_gt = y[:, :3]
+                bgr_with_artifact = x[:, :3]
+                event_gt = x[:, 3:4]
+
                 log_image_batch(
-                    x, y_hat, y, trainer.logger, trainer.global_step, f"ref_{i}"
+                    event_gt,
+                    bgr_gt,
+                    bgr_with_artifact,
+                    bgr_inpaint,
+                    est_artifact_map,
+                    artifact_map,
+                    trainer.logger,  # type: ignore
+                    trainer.global_step,
+                    f"ref_{i}",
                 )
 
     def on_validation_end(
@@ -73,11 +71,20 @@ class ValBatchImageLogger(pl.Callback):
         x, y = batch
         x = x[:8]
         y = y[:8]
-        if "pred_mid" in outputs:
-            y_hat_mid = outputs["pred_mid"][:8]
-            log_image_batch(
-                x, y_hat_mid, y, trainer.logger, trainer.global_step, "val_0_mid"
-            )
-            x = y_hat_mid
-        y_hat = outputs["pred"][:8]
-        log_image_batch(x, y_hat, y, trainer.logger, trainer.global_step, "val_0")
+        est_artifact_map = outputs["artifact_map"][:8]  # type: ignore
+        bgr_inpaint = outputs["inpaint_out"][:8]  # type: ignore
+        artifact_map = y[:, 3:4][:8]
+        bgr_gt = y[:, :3][:8]
+        bgr_with_artifact = x[:, :3][:8]
+        event_gt = x[:, 3:4][:8]
+        log_image_batch(
+            event_gt,
+            bgr_gt,
+            bgr_with_artifact,
+            bgr_inpaint,
+            est_artifact_map,
+            artifact_map,
+            trainer.logger,  # type: ignore
+            trainer.global_step,
+            "val_batch",
+        )

@@ -166,6 +166,7 @@ class JointDataModule(BaseDataModule):
                 self.ref_paths,
                 transform=T.Compose(
                     [
+                        transforms.EventMaskChannelRemover(),
                         T.ToTensor(),
                     ]
                 ),

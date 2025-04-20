@@ -1,7 +1,8 @@
 import logging
 import random
 
-import numpy
+import cv2
+import numpy as np
 import PIL.Image
 import pytorch_lightning.loggers as pl_loggers
 import torch
@@ -15,48 +16,80 @@ def set_global_seed(seed: int):
     logger.info(f"Setting global seed: {seed}")
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    numpy.random.seed(seed)
+    np.random.seed(seed)
     random.seed(seed)
 
 
 def log_image_batch(
-    x: torch.Tensor,
-    y_hat: torch.Tensor,
-    y: torch.Tensor | None,
+    event_gt: torch.Tensor,
+    bgr_gt: torch.Tensor,
+    bgr_with_artifact: torch.Tensor,
+    bgr_inpaint: torch.Tensor,
+    est_artifact_map: torch.Tensor,
+    artifact_map: torch.Tensor,
     logger: pl_loggers.Logger,
     global_step: int,
     tag: str,
 ):
-    x_bgr = x[:, :3]
-    if y_hat.shape[1] == 1:
-        # overlay mask on top of image
-        y_hat = torch.cat([y_hat, y_hat, y_hat], dim=1)
-    if y is not None and y.shape[1] == 1:
-        y = torch.cat([y, y, y], dim=1)
-    if x.shape[1] == 5:
-        x_event = x[:, 3:4]
-        x_mask = x[:, 4:5]
-        x_mask = torch.cat([x_mask, x_mask, x_mask], dim=1)
-        x_bgr = (1 - x_mask) * x_bgr + x_mask * x_event
-    if isinstance(logger, pl_loggers.TensorBoardLogger):
-        logger.experiment.add_images(f"{tag}_input", x_bgr, global_step=global_step)
-        logger.experiment.add_images(f"{tag}_output", y_hat, global_step=global_step)
-        if y is not None:
-            logger.experiment.add_images(f"{tag}_target", y, global_step=global_step)
-    elif isinstance(logger, pl_loggers.NeptuneLogger):
-        x_bgr = torch.dstack(x_bgr.unbind(0))
-        x_bgr = x_bgr.permute(1, 2, 0)
-        y_hat = torch.dstack(y_hat.unbind(0))
-        y_hat = y_hat.permute(1, 2, 0)
-        comp_vals = [x_bgr, y_hat]
-        if y is not None:
-            y = torch.dstack(y.unbind(0))
-            y = y.permute(1, 2, 0)
-            comp_vals.append(y)
+    """If not Neptune Logger -> skip"""
+    if not isinstance(logger, pl_loggers.NeptuneLogger):
+        return
+    event_gt_np = event_gt.cpu().numpy()
+    bgr_gt_np = bgr_gt.cpu().numpy()
+    bgr_with_artifact_np = bgr_with_artifact.cpu().numpy()
+    bgr_inpaint_np = bgr_inpaint.cpu().numpy()
+    est_artifact_map_np = est_artifact_map.cpu().numpy()
+    artifact_map_np = artifact_map.cpu().numpy()
 
-        comparison = torch.cat(comp_vals, dim=0)
-        comparison = comparison.cpu().numpy()
-        comparison = (comparison * 255).astype("uint8")
-        comparison = comparison[:, :, ::-1]
-        comparison = PIL.Image.fromarray(comparison)
-        logger.experiment[f"{tag}_comparison"].append(comparison)
+    bgr_gt_np = (bgr_gt_np * 255).astype(np.uint8)
+    bgr_gt_np = np.transpose(bgr_gt_np, (0, 2, 3, 1))
+
+    bgr_with_artifact_np = (bgr_with_artifact_np * 255).astype(np.uint8)
+    bgr_with_artifact_np = np.transpose(bgr_with_artifact_np, (0, 2, 3, 1))
+
+    bgr_inpaint_np = (bgr_inpaint_np * 255).astype(np.uint8)
+    bgr_inpaint_np = np.transpose(bgr_inpaint_np, (0, 2, 3, 1))
+
+    event_gt_np = (event_gt_np * 255).astype(np.uint8)
+    event_gt_np = np.transpose(event_gt_np, (0, 2, 3, 1))
+    event_gt_np = np.repeat(event_gt_np, 3, axis=3)
+
+    est_artifact_map_np = (est_artifact_map_np * 255).astype(np.uint8)
+    est_artifact_map_np = np.transpose(est_artifact_map_np, (0, 2, 3, 1))
+    est_artifact_map_np = np.repeat(est_artifact_map_np, 3, axis=3)
+
+    artifact_map_np = (artifact_map_np * 255).astype(np.uint8)
+    artifact_map_np = np.transpose(artifact_map_np, (0, 2, 3, 1))
+    artifact_map_np = np.repeat(artifact_map_np, 3, axis=3)
+
+    detection_result = np.concatenate(
+        [bgr_with_artifact_np, est_artifact_map_np, artifact_map_np],
+        axis=1,
+    )
+    detection_result = np.concatenate(detection_result, axis=1)
+    detection_result = detection_result[:, :, ::-1]
+    detection_result = cv2.resize(
+        detection_result,
+        (detection_result.shape[1] // 2, detection_result.shape[0] // 2),
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    inpainting_result = np.concatenate(
+        [bgr_with_artifact_np, bgr_inpaint_np, bgr_gt_np, event_gt_np],
+        axis=1,
+    )
+    inpainting_result = np.concatenate(inpainting_result, axis=1)
+    inpainting_result = inpainting_result[:, :, ::-1]
+    inpainting_result = cv2.resize(
+        inpainting_result,
+        (inpainting_result.shape[1] // 2, inpainting_result.shape[0] // 2),
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    detection_result_pil = PIL.Image.fromarray(detection_result)
+    inpainting_result_pil = PIL.Image.fromarray(inpainting_result)
+
+    # scale down 2 times
+
+    logger.experiment[f"{tag}_det_comparison"].append(detection_result_pil)
+    logger.experiment[f"{tag}_rec_comparison"].append(inpainting_result_pil)

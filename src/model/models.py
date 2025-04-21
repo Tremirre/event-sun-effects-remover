@@ -21,8 +21,10 @@ class ConvBlock(nn.Module):
         batch_norm: bool = True,
         with_fft: bool = False,
     ) -> None:
-        padding = kernel_size // 2
         super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        padding = kernel_size // 2
         self.convs = nn.ModuleList(
             [nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding)]
         )

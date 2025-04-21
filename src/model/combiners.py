@@ -1,5 +1,10 @@
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as TV
+
+from .models import ConvBlock
+
+COMBINER_IN_CHANNELS = 5
 
 
 class BaseCombiner(torch.nn.Module):
@@ -99,9 +104,24 @@ class MaskedRemovalCombiner(BaseCombiner):
         return torch.cat([masked_bgr, event_reconstruction, artifact_map], dim=1)
 
 
+class ConvolutionalCombiner(BaseCombiner):
+    def __init__(self, out_channels: int, depth: int, kernel_size: int = 3):
+        super().__init__()
+        self.conv = ConvBlock(COMBINER_IN_CHANNELS, out_channels, depth, kernel_size)
+
+    def get_output_channels(self) -> int:
+        return self.conv.out_channels
+
+    def forward(self, x: torch.Tensor, artifact_map: torch.Tensor) -> torch.Tensor:
+        x = torch.cat([x, artifact_map], dim=1)
+        x = self.conv(x)
+        return F.sigmoid(x)
+
+
 COMBINERS = {
     "simple_concat": SimpleConcatCombiner,
     "masked_removal": MaskedRemovalCombiner,
+    "convolutional": ConvolutionalCombiner,
 }
 
 

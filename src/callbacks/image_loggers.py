@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
 
-from src.const import REFERENCE_LOGGING_FREQ
+from src import const
 from src.utils import log_image_batch
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class ReferenceImageLogger(pl.Callback):
         self, trainer: pl.Trainer, pl_module: pl.LightningModule
     ) -> None:
         if (
-            trainer.current_epoch % REFERENCE_LOGGING_FREQ != 0
+            trainer.current_epoch % const.REFERENCE_LOGGING_FREQ != 0
             or trainer.current_epoch == 0
         ):
             return
@@ -65,6 +65,9 @@ class ValBatchImageLogger(pl.Callback):
         dataloader_idx=0,
     ) -> None:
         if batch_idx != 0:
+            return
+
+        if trainer.current_epoch % const.VALIDATION_LOGGING_FREQ != 0:
             return
 
         logger.info("Logging validation batch")

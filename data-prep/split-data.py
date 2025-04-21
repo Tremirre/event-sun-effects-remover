@@ -2,7 +2,7 @@ import pathlib
 
 SRC_PATH = pathlib.Path("data") / "processed"
 SRC_GLOB = "**/{scene}*.npy"
-TARGET_PATH = pathlib.Path("data") / "inpaint"
+TARGET_PATH = pathlib.Path("data") / "split"
 
 ASSINGMENT = {
     "train": [
@@ -16,7 +16,7 @@ ASSINGMENT = {
         "back3",
         "back4",
         "highway2",
-        "cityscapes_all",
+        "cityscapes/",
     ],
     "val": [
         "interlaken_00_g",

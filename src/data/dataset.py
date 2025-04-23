@@ -2,9 +2,12 @@ import logging
 import pathlib
 import typing
 
+import cv2
 import numpy as np
 import torch
 import torch.utils.data
+
+from .artifacts import ArtifactSource
 
 logger = logging.getLogger(__name__)
 
@@ -16,25 +19,22 @@ class Transform(typing.Protocol):
     ) -> np.ndarray | torch.Tensor: ...
 
 
-class Augmenter(typing.Protocol):
-    def __call__(
-        self,
-        img: np.ndarray,
-        idx: int,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
-
-
 class BGREADataset(torch.utils.data.Dataset):
     def __init__(
         self,
         img_paths: list[pathlib.Path],
         transform: Transform,
-        augmenter: Augmenter | None = None,
+        artifact_source: ArtifactSource | None = None,
     ) -> None:
         super().__init__()
         self.img_paths = img_paths
         self.transform = transform
-        self.augmenter = augmenter
+        self.artifact_source = artifact_source or self.no_source
+
+    @staticmethod
+    def no_source(img: np.ndarray) -> np.ndarray:
+        target_shape = img.shape[:2] + (3,)
+        return np.zeros(target_shape, dtype=np.uint8)
 
     def __len__(self) -> int:
         return len(self.img_paths)
@@ -44,20 +44,17 @@ class BGREADataset(torch.utils.data.Dataset):
         # y -> BGR + Artifact Map
         img = np.load(self.img_paths[idx])
 
-        # img will be 4 channel (if event mask is implicitly the whole image) or 5 channel
-        if img.shape[2] == 4:
-            img = np.concatenate([img, np.ones_like(img[:, :, :1]) * 255], axis=-1)
-
-        assert img.shape[2] == 5, "Expected 5 channels"
         out = img[:, :, :3].copy()
-        if self.augmenter is not None:
-            img, art_map = self.augmenter(img, idx)
-        else:
-            art_map = np.zeros_like(img[:, :, 3])
-        out = np.concatenate([out, art_map[:, :, np.newaxis]], axis=-1)
+        art_map = self.artifact_source(img)
+        img[:, :, :3] = cv2.add(img[:, :, :3], art_map)
+        art_map_gs = cv2.cvtColor(art_map, cv2.COLOR_BGR2GRAY)
+        out = np.concatenate([out, art_map_gs[:, :, np.newaxis]], axis=-1)
 
+        img = img[:, :, :5]
         x = self.transform(img)
         y = self.transform(out)
         x = typing.cast(torch.Tensor, x)
         y = typing.cast(torch.Tensor, y)
+        assert x.shape[0] == 4, "x should have 4 channels"
+        assert y.shape[0] == 4, "y should have 4 channels"
         return x, y

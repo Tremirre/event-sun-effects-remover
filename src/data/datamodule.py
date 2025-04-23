@@ -6,7 +6,7 @@ import torch.utils.data
 import torchvision.transforms as T
 
 from src import const
-from src.data import dataset, transforms
+from src.data import artifacts, dataset, transforms
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -107,21 +107,17 @@ class JointDataModule(BaseDataModule):
         self.target_binarization = target_binarization
         logger.info("Initialized Joint Data module")
 
-    def get_augmenter(
-        self, fix_by_idx: bool = False
-    ) -> transforms.CompositeLightArtifactAugmenter:
-        return transforms.CompositeLightArtifactAugmenter(
+    def get_artifact_source(self) -> artifacts.CompositeLightArtifactGenerator:
+        return artifacts.CompositeLightArtifactGenerator(
             augmenters=[
-                transforms.LensFlareAdder(1, 10, 1, 20, 0.6, 0.9, 0.2),
-                transforms.VeilingGlareAdder(10, 150, 10, 60, 0.3),
-                transforms.SunAdder(4, 25, 0.0, 0.5, 0.3, 0.8),
-                transforms.HQFlareBasedAugmenter(
+                artifacts.LensFlareAdder(1, 10, 1, 20, 0.6, 0.9, 0.2),
+                artifacts.VeilingGlareAdder(10, 150, 10, 60, 0.3),
+                artifacts.SunAdder(4, 25, 0.0, 0.5, 0.3, 0.8),
+                artifacts.HQFlareBasedAugmenter(
                     list(const.FLARES_DIR.glob("**/*.png"))
                 ),
             ],
             probs=[self.p_flare, self.p_glare, self.p_sun, self.p_hq_flare],
-            fix_by_idx=fix_by_idx,
-            target_binarization=self.target_binarization,
         )
 
     def setup(self, stage: str) -> None:
@@ -138,7 +134,7 @@ class JointDataModule(BaseDataModule):
                         T.ToTensor(),
                     ]
                 ),
-                augmenter=self.get_augmenter(fix_by_idx=False),
+                artifact_source=self.get_artifact_source(fix_by_idx=False),
             )
             self.val_dataset = dataset.BGREADataset(
                 self.val_paths,
@@ -148,7 +144,7 @@ class JointDataModule(BaseDataModule):
                         T.ToTensor(),
                     ]
                 ),
-                augmenter=self.get_augmenter(fix_by_idx=True),
+                artifact_source=artifacts.LightArtifactExtractor(),
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREADataset(
@@ -159,7 +155,7 @@ class JointDataModule(BaseDataModule):
                         T.ToTensor(),
                     ]
                 ),
-                augmenter=self.get_augmenter(fix_by_idx=True),
+                artifact_source=artifacts.LightArtifactExtractor(),
             )
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGREADataset(

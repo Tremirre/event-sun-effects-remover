@@ -46,6 +46,7 @@ ASSINGMENT = {
         "street2",
     ],
     "test": [
+        "interlaken_00_d",
         "zurich_01_a",
         "zurich_city_13_b",
         "highway1",

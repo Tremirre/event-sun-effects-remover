@@ -41,6 +41,7 @@ class Config:
     )
     img_glob: str = "**/*.npy"
     num_workers: int = 0
+    non_mask_penalty: bool = False
     profile: bool = False
     log_tensorboard: bool = False
     run_tags: str = "default"
@@ -172,6 +173,11 @@ class Config:
         parser.add_argument(
             "--num-workers", type=int, default=0, help="Number of workers"
         )
+        parser.add_argument(
+            "--non-mask-penalty",
+            action="store_true",
+            help="Apply non-mask penalty in inpainter loss",
+        )
         parser.add_argument("--profile", action="store_true", help="Enable profiling")
         parser.add_argument(
             "--log-tensorboard", action="store_true", help="Log to TensorBoard"
@@ -274,6 +280,7 @@ class Config:
             detector=detector,
             combiner=combiner,
             inpainter=inpainter,
+            apply_non_mask_penalty=self.non_mask_penalty,
         )
 
     def get_data_module(self) -> datamodule.BaseDataModule:

@@ -35,6 +35,7 @@ class DetectorInpainterModule(BaseModule):
         detector: torch.nn.Module,
         combiner: torch.nn.Module,
         inpainter: torch.nn.Module,
+        apply_non_mask_penalty: bool = False,
     ) -> None:
         super().__init__()
         self.detector = detector
@@ -42,6 +43,8 @@ class DetectorInpainterModule(BaseModule):
         self.inpainter = inpainter
         self.tv_loss = TVLoss(2)
         self.vgg_loss = VGGLoss()
+        if apply_non_mask_penalty:
+            logger.info("Non-mask penalty will be applied")
 
     def detector_loss(
         self, artifact_map: torch.Tensor, target: torch.Tensor
@@ -61,6 +64,18 @@ class DetectorInpainterModule(BaseModule):
             self.log(f"{stage}_vgg_loss", vgg_loss, on_epoch=True)
             self.log(f"{stage}_tv_loss", tv_loss, on_epoch=True)
         return 1.0 * mae + 0.5 * ssim + 0.1 * vgg_loss + 0.05 * tv_loss
+
+    def non_mask_edit_loss(
+        self,
+        inpaint_in: torch.Tensor,
+        inpaint_out: torch.Tensor,
+        artifact_map: torch.Tensor,
+    ) -> torch.Tensor:
+        inpaint_in_masked = inpaint_in * (1 - artifact_map)
+        inpaint_out_masked = inpaint_out * (1 - artifact_map)
+        mae = F.l1_loss(inpaint_out_masked, inpaint_in_masked)
+        ssim = 1 - msssim.ms_ssim(inpaint_out_masked, inpaint_in_masked)
+        return mae + 0.5 * ssim
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # input Bx4xHxW
@@ -84,6 +99,14 @@ class DetectorInpainterModule(BaseModule):
         detection_loss = self.detector_loss(artifact_map, y[:, 3, :, :])
         inpaint_loss = self.inpainter_loss(inpaint_out, y[:, :3, :, :], stage=stage)
         total_loss = detection_loss + inpaint_loss
+        non_mask_res = {}
+        if self.apply_non_mask_penalty:
+            non_mask_edit_loss = self.non_mask_edit_loss(
+                x[:, :3, :, :], inpaint_out, artifact_map
+            )
+            self.log(f"{stage}_non_mask_edit_loss", non_mask_edit_loss, on_epoch=True)
+            total_loss += non_mask_edit_loss
+            non_mask_res = {"non_mask_edit_loss": non_mask_edit_loss}
         self.log(f"{stage}_total_loss", total_loss, prog_bar=True, on_epoch=True)
         self.log(f"{stage}_detection_loss", detection_loss, on_epoch=True)
         self.log(f"{stage}_inpaint_loss", inpaint_loss, on_epoch=True)
@@ -94,6 +117,7 @@ class DetectorInpainterModule(BaseModule):
             "inpaint_loss": inpaint_loss,
             "artifact_map": artifact_map,
             "inpaint_out": inpaint_out,
+            **non_mask_res,
         }
 
     def configure_optimizers(self):

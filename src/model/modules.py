@@ -43,6 +43,7 @@ class DetectorInpainterModule(BaseModule):
         self.inpainter = inpainter
         self.tv_loss = TVLoss(2)
         self.vgg_loss = VGGLoss()
+        self.apply_non_mask_penalty = apply_non_mask_penalty
         if apply_non_mask_penalty:
             logger.info("Non-mask penalty will be applied")
 

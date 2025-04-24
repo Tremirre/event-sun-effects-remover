@@ -68,10 +68,11 @@ if __name__ == "__main__":
     logger.info("Logging JSON config")
     config_dict = config.to_json_dict()
     config_dict["run_idx"] = RUN_IDX
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
-        json.dump(config_dict, f, indent=4)
-        f.flush()
-        run_logger.experiment["config"].upload(f.name)
+    if isinstance(run_logger, loggers.NeptuneLogger):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
+            json.dump(config_dict, f, indent=4)
+            f.flush()
+            run_logger.experiment["config"].upload(f.name)
     config_dict = dataclasses.asdict(config)
     trainer.logger.log_hyperparams(config_dict)  # type: ignore
     trainer.logger.log_hyperparams(dataset_sizes)  # type: ignore

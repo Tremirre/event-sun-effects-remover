@@ -134,7 +134,7 @@ class JointDataModule(BaseDataModule):
                         T.ToTensor(),
                     ]
                 ),
-                artifact_source=self.get_artifact_source(fix_by_idx=False),
+                artifact_source=self.get_artifact_source(),
             )
             self.val_dataset = dataset.BGREADataset(
                 self.val_paths,

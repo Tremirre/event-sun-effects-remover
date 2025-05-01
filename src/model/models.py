@@ -18,9 +18,11 @@ class ConvBlock(nn.Module):
         out_channels: int,
         depth: int,
         kernel_size: int = 3,
+        activation_func: str = "relu",
         batch_norm: bool = True,
         with_fft: bool = False,
     ) -> None:
+        assert activation_func in ACTIVATIONS
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -42,14 +44,15 @@ class ConvBlock(nn.Module):
         self.shortcut = nn.Identity()
         if in_channels != out_channels:
             self.shortcut = nn.Conv2d(in_channels, out_channels, 1)
+        self.activation = ACTIVATIONS[activation_func]
 
     def forward(self, x):
         x_orig = self.shortcut(x)
         for conv in self.convs:
-            x = F.relu(conv(x))
+            x = self.activation(conv(x))
         if self.batch_norm:
             x = self.bn(x)
-        return F.relu(x + x_orig)
+        return self.activation(x + x_orig)
 
 
 class UpConvBlock(nn.Module):
@@ -59,6 +62,7 @@ class UpConvBlock(nn.Module):
         out_channels: int,
         depth: int,
         kernel_size: int = 3,
+        activation_func: str = "relu",
         with_fft: bool = False,
     ) -> None:
         super().__init__()
@@ -70,11 +74,16 @@ class UpConvBlock(nn.Module):
             output_padding=0,
         )
         self.conv_block = ConvBlock(
-            out_channels * 2, out_channels, depth, kernel_size, with_fft=with_fft
+            out_channels * 2,
+            out_channels,
+            depth,
+            kernel_size,
+            with_fft=with_fft,
+            activation_func=activation_func,
         )
 
     def forward(self, x, x_skip):
-        x = F.relu(self.upconv(x))
+        x = self.conv_block.activation(self.upconv(x))
         if x.size()[2:] != x_skip.size()[2:]:
             x = F.interpolate(
                 x, size=x_skip.size()[2:], mode="bilinear", align_corners=False
@@ -91,6 +100,7 @@ class UNet(nn.Module):
         block_depth: int,
         in_channels: int,
         kernel_size: int = 3,
+        activation_func: str = "relu",
         with_fft: bool = False,
         out_channels: int = const.CHANNELS_OUT,
     ) -> None:
@@ -105,6 +115,7 @@ class UNet(nn.Module):
                     features[i + 1],
                     block_depth,
                     kernel_size,
+                    activation_func=activation_func,
                     with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks)
@@ -117,6 +128,7 @@ class UNet(nn.Module):
                     features[i],
                     block_depth,
                     kernel_size,
+                    activation_func=activation_func,
                     with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks - 1, 0, -1)
@@ -194,6 +206,16 @@ class NoOp(nn.Module):
 MODELS = {
     "unet": UNet,
     "noop": NoOp,
+}
+
+
+ACTIVATIONS = {
+    "relu": F.relu,
+    "tanh": F.tanh,
+    "gelu": F.gelu,
+    "elu": F.elu,
+    "leakyrelu": F.leaky_relu,
+    "sigmoid": F.sigmoid,
 }
 
 

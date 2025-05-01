@@ -35,6 +35,7 @@ class DetectorInpainterModule(BaseModule):
         detector: torch.nn.Module,
         combiner: torch.nn.Module,
         inpainter: torch.nn.Module,
+        learning_rate: float = 1e-4,
         apply_non_mask_penalty: bool = False,
     ) -> None:
         super().__init__()
@@ -44,6 +45,7 @@ class DetectorInpainterModule(BaseModule):
         self.tv_loss = TVLoss(2)
         self.vgg_loss = VGGLoss()
         self.apply_non_mask_penalty = apply_non_mask_penalty
+        self.learning_rate = learning_rate
         if apply_non_mask_penalty:
             logger.info("Non-mask penalty will be applied")
 
@@ -122,4 +124,4 @@ class DetectorInpainterModule(BaseModule):
         }
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-4)  # type: ignore
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)  # type: ignore

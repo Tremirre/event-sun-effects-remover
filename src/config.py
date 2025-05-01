@@ -39,6 +39,7 @@ class Config:
     inpainter_kwargs: dict[str, str | int | bool] = dataclasses.field(
         default_factory=dict
     )
+    learning_rate: float = 1e-4
     img_glob: str = "**/*.npy"
     num_workers: int = 0
     non_mask_penalty: bool = False
@@ -171,6 +172,12 @@ class Config:
             help="Additional kwargs for the inpainter model",
         )
         parser.add_argument(
+            "--learning-rate",
+            type=float,
+            default=1e-4,
+            help="Learning rate for the optimizer",
+        )
+        parser.add_argument(
             "--num-workers", type=int, default=0, help="Number of workers"
         )
         parser.add_argument(
@@ -281,6 +288,7 @@ class Config:
             combiner=combiner,
             inpainter=inpainter,
             apply_non_mask_penalty=self.non_mask_penalty,
+            learning_rate=self.learning_rate,
         )
 
     def get_data_module(self) -> datamodule.BaseDataModule:

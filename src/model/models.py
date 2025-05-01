@@ -63,6 +63,7 @@ class UpConvBlock(nn.Module):
         depth: int,
         kernel_size: int = 3,
         activation_func: str = "relu",
+        batch_norm: bool = True,
         with_fft: bool = False,
     ) -> None:
         super().__init__()
@@ -80,6 +81,7 @@ class UpConvBlock(nn.Module):
             kernel_size,
             with_fft=with_fft,
             activation_func=activation_func,
+            batch_norm=batch_norm,
         )
 
     def forward(self, x, x_skip):
@@ -101,6 +103,7 @@ class UNet(nn.Module):
         in_channels: int,
         kernel_size: int = 3,
         activation_func: str = "relu",
+        batch_norm: bool = True,
         with_fft: bool = False,
         out_channels: int = const.CHANNELS_OUT,
     ) -> None:
@@ -116,6 +119,7 @@ class UNet(nn.Module):
                     block_depth,
                     kernel_size,
                     activation_func=activation_func,
+                    batch_norm=batch_norm,
                     with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks)
@@ -129,6 +133,7 @@ class UNet(nn.Module):
                     block_depth,
                     kernel_size,
                     activation_func=activation_func,
+                    batch_norm=batch_norm,
                     with_fft=with_fft if i > 0 else False,
                 )
                 for i in range(n_blocks - 1, 0, -1)

@@ -309,7 +309,6 @@ class Config:
             test_paths=test_paths,
             ref_paths=ref_paths,
             batch_size=self.batch_size,
-            frac_used=self.frac_used,
             num_workers=self.num_workers,
             p_sun=self.p_sun,
             p_glare=self.p_glare,

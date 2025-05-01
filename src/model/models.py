@@ -211,11 +211,10 @@ MODELS = {
 
 ACTIVATIONS = {
     "relu": F.relu,
-    "tanh": F.tanh,
     "gelu": F.gelu,
     "elu": F.elu,
     "leakyrelu": F.leaky_relu,
-    "sigmoid": F.sigmoid,
+    "mish": F.mish,
 }
 
 

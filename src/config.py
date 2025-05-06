@@ -238,6 +238,10 @@ class Config:
         assert 0 <= self.p_hq_flare <= 1, (
             "Probability of high quality flare augmentation must be in [0, 1]"
         )
+        self.ref_dir = pathlib.Path(self.ref_dir).resolve()
+        self.train_dir = pathlib.Path(self.train_dir).resolve()
+        self.val_dir = pathlib.Path(self.val_dir).resolve()
+        self.test_dir = pathlib.Path(self.test_dir).resolve()
 
     def get_logger(self):
         if self.log_tensorboard:

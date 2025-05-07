@@ -4,14 +4,17 @@ import neptune
 import numpy as np
 import optuna
 import pytorch_lightning as pl
+import torch
 from neptune.integrations.optuna import NeptuneCallback
 
 from . import const
 from .data import datamodule
 from .model import combiners, models, modules
+from .utils import PyTorchLightningPruningCallback, set_global_seed
 
 FRAC_USED = 0.1
 EPOCHS = 50
+torch.set_float32_matmul_precision("medium")
 
 
 def get_data_module(trial: optuna.Trial) -> datamodule.BaseDataModule:
@@ -70,6 +73,12 @@ def get_model(trial: optuna.Trial) -> modules.DetectorInpainterModule:
             ),
             soft_factor=trial.suggest_categorical("soft_factor", [True, False]),  # type: ignore
         )
+    elif combiner_name == "convolutional":
+        combiner = combiners.ConvolutionalCombiner(
+            out_channels=trial.suggest_int("combiner_out_channels", 3, 6),
+            depth=trial.suggest_int("combiner_depth", 1, 4),
+            kernel_size=trial.suggest_int("combiner_kernel_size_half", 1, 3) * 2 + 1,
+        )
     else:
         combiner = combiners.get_combiner(combiner_name)
 
@@ -97,6 +106,7 @@ def get_model(trial: optuna.Trial) -> modules.DetectorInpainterModule:
 
 
 def objective(trial: optuna.Trial) -> float:
+    set_global_seed(trial.number)
     data_module = get_data_module(trial)
     model = get_model(trial)
 
@@ -108,14 +118,11 @@ def objective(trial: optuna.Trial) -> float:
         enable_checkpointing=False,
         enable_progress_bar=False,
         callbacks=[
-            optuna.integration.PyTorchLightningPruningCallback(
-                trial, monitor="val_inpaint_loss", check_interval=1
-            ),
+            PyTorchLightningPruningCallback(trial, monitor="val_inpaint_loss"),
         ],
     )
 
     trainer.fit(model, data_module)
-
     val_loss = trainer.callback_metrics["val_loss"].item()
     return val_loss
 
@@ -125,7 +132,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--study_name",
         type=str,
-        default="hpo",
+        default=".hpo",
         help="Name of the Optuna study",
     )
     parser.add_argument(

@@ -71,7 +71,7 @@ def get_model(trial: optuna.Trial) -> modules.DetectorInpainterModule:
                 "yuv_interpolation",
                 [True, False],  # type: ignore
             ),
-            soft_factor=trial.suggest_categorical("soft_factor", [True, False]),  # type: ignore
+            soft_factor=trial.suggest_categorical("soft_factor", [10, 0]),  # type: ignore
         )
     elif combiner_name == "convolutional":
         combiner = combiners.ConvolutionalCombiner(

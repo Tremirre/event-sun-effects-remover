@@ -153,7 +153,7 @@ if __name__ == "__main__":
     )
     study = optuna.create_study(
         study_name=args.study_name,
-        storage="sqlite:///hpo.db",
+        storage="sqlite:///.hpo.db",
         load_if_exists=True,
         pruner=pruner,
         direction="minimize",

@@ -4,6 +4,7 @@ import typing
 
 import cv2
 import numpy as np
+import skimage
 import torch
 import torch.utils.data
 
@@ -36,6 +37,32 @@ class BGREADataset(torch.utils.data.Dataset):
         target_shape = img.shape[:2] + (3,)
         return np.zeros(target_shape, dtype=np.uint8)
 
+    @staticmethod
+    def fill_event(img: np.ndarray) -> np.ndarray:
+        if img.shape[-1] < 5:  # no event mask
+            return img
+        mask = img[:, :, 4]
+        if (mask > 0).all():
+            return img
+        rec = img[:, :, 3]
+        bgr = img[:, :, :3]
+        gs = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        height, width = gs.shape[:2]
+        gs_equated = (
+            skimage.exposure.match_histograms(gs.flatten(), rec[mask > 0])
+            .astype(np.uint8)
+            .reshape(height, width)
+        )
+        mask_eroded = cv2.erode(
+            mask.copy(), np.ones((3, 3), dtype=np.uint8), iterations=8
+        )
+        mask_softened = (
+            cv2.GaussianBlur(mask_eroded, (0, 0), 4).astype(np.float32) / 255.0
+        )
+
+        img[:, :, 3] = mask_softened * rec + (1 - mask_softened) * gs_equated
+        return img
+
     def __len__(self) -> int:
         return len(self.img_paths)
 
@@ -43,7 +70,7 @@ class BGREADataset(torch.utils.data.Dataset):
         # x -> BGR + Event Reconstruction
         # y -> BGR + Artifact Map
         img = np.load(self.img_paths[idx])
-
+        img = self.fill_event(img)
         out = img[:, :, :3].copy()
         art_map = self.artifact_source(img)
         img[:, :, :3] = cv2.add(img[:, :, :3], art_map)

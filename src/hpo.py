@@ -1,5 +1,6 @@
 import argparse
 
+import dotenv
 import neptune
 import numpy as np
 import optuna
@@ -15,6 +16,7 @@ from .utils import PyTorchLightningPruningCallback, set_global_seed
 FRAC_USED = 0.1
 EPOCHS = 50
 torch.set_float32_matmul_precision("medium")
+dotenv.load_dotenv()
 
 
 def get_data_module(trial: optuna.Trial) -> datamodule.BaseDataModule:

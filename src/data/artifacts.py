@@ -223,13 +223,42 @@ class HQFlareBasedAugmenter(BaseLightArtifactGenerator):
 
         return flare
 
-    def __call__(self, shape):
+    def __call__(self, shape: tuple[int, int, int]) -> np.ndarray:
         n_flares = np.random.randint(1, 5)
         flare_map = np.zeros(shape=shape, dtype=np.uint8)
         for _ in range(n_flares):
             flare = self._get_flare(shape)
             flare_map = cv2.add(flare_map, flare)
         return flare_map
+
+
+class OverlitAugmenter(BaseLightArtifactGenerator):
+    def __init__(self, min_size: int, max_size: int):
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def __call__(self, shape: tuple[int, int, int]) -> np.ndarray:
+        # create a random rectangle
+        img = np.zeros(shape=shape, dtype=np.uint8)
+        width = np.random.randint(self.min_size, self.max_size)
+        height = np.random.randint(self.min_size, self.max_size)
+        # create a random rectangle
+
+        x1 = np.random.randint(0, shape[1])
+        y1 = np.random.randint(0, shape[0])
+
+        x2 = np.random.randint(min(width, x1 + width), shape[1])
+        y2 = np.random.randint(min(height, y1 + height), shape[0])
+        # create a random rectangle
+        cv2.rectangle(
+            img,
+            (x1, y1),
+            (x2, y2),
+            (255, 255, 255),
+            -1,
+        )
+        img = cv2.GaussianBlur(img, (0, 0), 30)
+        return img
 
 
 class NoOpAugmenter(BaseLightArtifactGenerator):

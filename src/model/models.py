@@ -240,7 +240,7 @@ class UNet(nn.Module):
 
 class NoOp(nn.Module):
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
     def forward(self, x):
         return x

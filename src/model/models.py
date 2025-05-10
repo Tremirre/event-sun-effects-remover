@@ -239,11 +239,12 @@ class UNet(nn.Module):
 
 
 class NoOp(nn.Module):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, out_channels: int, **kwargs) -> None:
         super().__init__()
+        self.out_channels = out_channels
 
     def forward(self, x):
-        return x
+        return x[:, : self.out_channels, :, :]
 
 
 MODELS = {

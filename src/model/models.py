@@ -259,6 +259,7 @@ ACTIVATIONS = {
     "elu": F.elu,
     "leakyrelu": F.leaky_relu,
     "mish": F.mish,
+    "sigmoid": torch.sigmoid,
 }
 
 

@@ -47,10 +47,11 @@ class Config:
     log_tensorboard: bool = False
     run_tags: str = "default"
     save: bool = False
-    p_sun: float = 0.5
-    p_glare: float = 0.5
-    p_flare: float = 0.5
-    p_hq_flare: float = 0.5
+    p_sun: float = 0.4
+    p_glare: float = 0.4
+    p_flare: float = 0.4
+    p_hq_flare: float = 0.4
+    p_overlit: float = 0.4
 
     def serialized_kwargs(self, field: str) -> str:
         kwargs = getattr(self, field)
@@ -204,26 +205,32 @@ class Config:
         parser.add_argument(
             "--p-sun",
             type=float,
-            default=0.5,
+            default=0.4,
             help="Probability of a sun augmentation in artifact detector",
         )
         parser.add_argument(
             "--p-glare",
             type=float,
-            default=0.5,
+            default=0.4,
             help="Probability of a glare augmentation in artifact detector",
         )
         parser.add_argument(
             "--p-flare",
             type=float,
-            default=0.5,
+            default=0.4,
             help="Probability of a flare augmentation in artifact detector",
         )
         parser.add_argument(
             "--p-hq-flare",
             type=float,
-            default=0.5,
+            default=0.4,
             help="Probability of a high quality flare augmentation in artifact detector",
+        )
+        parser.add_argument(
+            "--p-overlit",
+            type=float,
+            default=0.4,
+            help="Probability of an overlit augmentation in artifact detector",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -237,6 +244,9 @@ class Config:
         )
         assert 0 <= self.p_hq_flare <= 1, (
             "Probability of high quality flare augmentation must be in [0, 1]"
+        )
+        assert 0 <= self.p_overlit <= 1, (
+            "Probability of overlit augmentation must be in [0, 1]"
         )
         self.ref_dir = pathlib.Path(self.ref_dir).resolve()
         self.train_dir = pathlib.Path(self.train_dir).resolve()

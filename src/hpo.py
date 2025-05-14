@@ -1,4 +1,7 @@
 import argparse
+import enum
+import functools
+import typing
 
 import dotenv
 import neptune
@@ -19,7 +22,21 @@ torch.set_float32_matmul_precision("medium")
 dotenv.load_dotenv()
 
 
-def get_data_module(trial: optuna.Trial) -> datamodule.BaseDataModule:
+class HPOType(enum.Enum):
+    DETECTOR = "detector"
+    INPAINTER = "inpainter"
+    OTHER = "other"
+
+
+def param_from_type(
+    cbk: typing.Callable, src_type: HPOType, trgt_type: HPOType, default: typing.Any
+) -> typing.Any:
+    if src_type == trgt_type:
+        return cbk()
+    return default
+
+
+def get_data_module(trial: optuna.Trial, h_type: HPOType) -> datamodule.BaseDataModule:
     train_paths = sorted(const.TRAIN_DIR.glob(const.DATA_PATTERN))  # type: ignore
     val_paths = sorted(const.VAL_DIR.glob(const.DATA_PATTERN))  # type: ignore
 
@@ -36,81 +53,202 @@ def get_data_module(trial: optuna.Trial) -> datamodule.BaseDataModule:
         val_paths=val_paths,
         test_paths=[],
         ref_paths=[],
-        batch_size=trial.suggest_int("batch_size", 1, 16),
+        batch_size=8,
         num_workers=4,
-        p_sun=trial.suggest_float("p_sun", 0.0, 1.0),
-        p_glare=trial.suggest_float("p_glare", 0.0, 1.0),
-        p_flare=trial.suggest_float("p_flare", 0.0, 1.0),
-        p_hq_flare=trial.suggest_float("p_hq_flare", 0.0, 1.0),
+        p_sun=param_from_type(
+            lambda: trial.suggest_float("p_sun", 0.0, 1.0), h_type, HPOType.OTHER, 0.4
+        ),
+        p_glare=param_from_type(
+            lambda: trial.suggest_float("p_glare", 0.0, 1.0), h_type, HPOType.OTHER, 0.4
+        ),
+        p_flare=param_from_type(
+            lambda: trial.suggest_float("p_flare", 0.0, 1.0), h_type, HPOType.OTHER, 0.4
+        ),
+        p_hq_flare=param_from_type(
+            lambda: trial.suggest_float("p_hq_flare", 0.0, 1.0),
+            h_type,
+            HPOType.OTHER,
+            0.4,
+        ),
+        p_overlit=param_from_type(
+            lambda: trial.suggest_float("p_overlit", 0.0, 1.0),
+            h_type,
+            HPOType.OTHER,
+            0.4,
+        ),
     )
 
 
-def get_model(trial: optuna.Trial) -> modules.DetectorInpainterModule:
+def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainterModule:
     detector = models.UNet(
-        n_blocks=trial.suggest_int("detector_n_blocks", 3, 4),
-        block_depth=trial.suggest_int("detector_block_depth", 1, 4),
-        in_channels=3,
-        kernel_size=trial.suggest_int("detector_kernel_size_half", 1, 3) * 2 + 1,
-        activation_func=trial.suggest_categorical(
-            "detector_activation_func", ["relu", "leakyrelu", "gelu", "elu", "mish"]
+        n_blocks=param_from_type(
+            lambda: trial.suggest_int("detector_n_blocks", 3, 4),
+            h_type,
+            HPOType.DETECTOR,
+            3,
         ),
-        batch_norm=trial.suggest_categorical("detector_batch_norm", [True, False]),
-        with_fft=trial.suggest_categorical("detector_with_fft", [True, False]),
+        block_depth=param_from_type(
+            lambda: trial.suggest_int("detector_block_depth", 1, 4),
+            h_type,
+            HPOType.DETECTOR,
+            2,
+        ),
+        in_channels=3,
+        kernel_size=param_from_type(
+            lambda: trial.suggest_int("detector_kernel_size_half", 1, 3) * 2 + 1,
+            h_type,
+            HPOType.DETECTOR,
+            3,
+        ),
+        activation_func=param_from_type(
+            lambda: trial.suggest_categorical(
+                "detector_activation_func", ["relu", "leakyrelu", "gelu", "elu", "mish"]
+            ),
+            h_type,
+            HPOType.DETECTOR,
+            "relu",
+        ),
+        batch_norm=param_from_type(
+            lambda: trial.suggest_categorical("detector_batch_norm", [True, False]),
+            h_type,
+            HPOType.DETECTOR,
+            True,
+        ),
+        with_fft=param_from_type(
+            lambda: trial.suggest_categorical("detector_with_fft", [True, False]),
+            h_type,
+            HPOType.DETECTOR,
+            False,
+        ),
         out_channels=1,
     )
-    combiner_name = trial.suggest_categorical(
-        "combiner",
-        [
-            "masked_removal",
-            "simple_concat",
-            "convolutional",
-        ],
+    combiner_name = param_from_type(
+        lambda: trial.suggest_categorical(
+            "combiner",
+            [
+                "masked_removal",
+                "simple_concat",
+                "convolutional",
+            ],
+        ),
+        h_type,
+        HPOType.OTHER,
+        "simple_concat",
     )
     if combiner_name == "masked_removal":
         combiner = combiners.MaskedRemovalCombiner(
-            binarize=trial.suggest_categorical("binarize", [True, False]),  # type: ignore
-            yuv_interpolation=trial.suggest_categorical(
-                "yuv_interpolation",
-                [True, False],  # type: ignore
+            binarize=param_from_type(
+                lambda: trial.suggest_categorical("binarize", [True, False]),  # type: ignore
+                h_type,
+                HPOType.OTHER,
+                False,
             ),
-            soft_factor=trial.suggest_categorical("soft_factor", [10, 0]),  # type: ignore
+            yuv_interpolation=param_from_type(
+                lambda: trial.suggest_categorical(
+                    "yuv_interpolation",
+                    [True, False],  # type: ignore
+                ),
+                h_type,
+                HPOType.OTHER,
+                False,
+            ),
+            soft_factor=param_from_type(
+                lambda: trial.suggest_categorical("soft_factor", [10, 0]),  # type: ignore
+                h_type,
+                HPOType.OTHER,
+                0,
+            ),
         )
     elif combiner_name == "convolutional":
         combiner = combiners.ConvolutionalCombiner(
-            out_channels=trial.suggest_int("combiner_out_channels", 3, 6),
-            depth=trial.suggest_int("combiner_depth", 1, 4),
-            kernel_size=trial.suggest_int("combiner_kernel_size_half", 1, 3) * 2 + 1,
+            out_channels=param_from_type(
+                lambda: trial.suggest_int("combiner_out_channels", 3, 6),
+                h_type,
+                HPOType.OTHER,
+                3,
+            ),
+            depth=param_from_type(
+                lambda: trial.suggest_int("combiner_depth", 1, 4),
+                h_type,
+                HPOType.OTHER,
+                2,
+            ),
+            kernel_size=param_from_type(
+                lambda: trial.suggest_int("combiner_kernel_size_half", 1, 3) * 2 + 1,
+                h_type,
+                HPOType.OTHER,
+                3,
+            ),
         )
     else:
         combiner = combiners.get_combiner(combiner_name)
 
     inpainter = models.UNet(
-        n_blocks=trial.suggest_int("inpainter_n_blocks", 3, 4),
-        block_depth=trial.suggest_int("inpainter_block_depth", 1, 4),
-        in_channels=combiner.get_output_channels(),
-        kernel_size=trial.suggest_int("inpainter_kernel_size_half", 1, 3) * 2 + 1,
-        activation_func=trial.suggest_categorical(
-            "inpainter_activation_func", ["relu", "leakyrelu", "gelu", "elu", "mish"]
+        n_blocks=param_from_type(
+            lambda: trial.suggest_int("inpainter_n_blocks", 3, 4),
+            h_type,
+            HPOType.INPAINTER,
+            3,
         ),
-        batch_norm=trial.suggest_categorical("inpainter_batch_norm", [True, False]),
-        with_fft=trial.suggest_categorical("inpainter_with_fft", [True, False]),
+        block_depth=param_from_type(
+            lambda: trial.suggest_int("inpainter_block_depth", 1, 4),
+            h_type,
+            HPOType.INPAINTER,
+            2,
+        ),
+        in_channels=combiner.get_output_channels(),
+        kernel_size=param_from_type(
+            lambda: trial.suggest_int("inpainter_kernel_size_half", 1, 3) * 2 + 1,
+            h_type,
+            HPOType.INPAINTER,
+            3,
+        ),
+        activation_func=param_from_type(
+            lambda: trial.suggest_categorical(
+                "inpainter_activation_func",
+                ["relu", "leakyrelu", "gelu", "elu", "mish"],
+            ),
+            h_type,
+            HPOType.INPAINTER,
+            "relu",
+        ),
+        batch_norm=param_from_type(
+            lambda: trial.suggest_categorical("inpainter_batch_norm", [True, False]),
+            h_type,
+            HPOType.INPAINTER,
+            True,
+        ),
+        with_fft=param_from_type(
+            lambda: trial.suggest_categorical("inpainter_with_fft", [True, False]),
+            h_type,
+            HPOType.INPAINTER,
+            False,
+        ),
         out_channels=const.CHANNELS_OUT,
     )
     return modules.DetectorInpainterModule(
         detector=detector,
         combiner=combiner,
         inpainter=inpainter,
-        learning_rate=trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
-        apply_non_mask_penalty=trial.suggest_categorical(
-            "apply_non_mask_penalty", [True, False]
+        learning_rate=param_from_type(
+            lambda: trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
+            h_type,
+            HPOType.OTHER,
+            1e-3,
+        ),
+        apply_non_mask_penalty=param_from_type(
+            lambda: trial.suggest_categorical("apply_non_mask_penalty", [True, False]),
+            h_type,
+            HPOType.OTHER,
+            False,
         ),
     )
 
 
-def objective(trial: optuna.Trial) -> float:
+def objective(trial: optuna.Trial, h_type: HPOType) -> float:
     set_global_seed(trial.number)
-    data_module = get_data_module(trial)
-    model = get_model(trial)
+    data_module = get_data_module(trial, h_type)
+    model = get_model(trial, h_type)
 
     trainer = pl.Trainer(
         max_epochs=EPOCHS,
@@ -143,6 +281,12 @@ def parse_args() -> argparse.Namespace:
         default=100,
         help="Number of trials to run",
     )
+    parser.add_argument(
+        "--type",
+        type=HPOType,
+        choices=list(HPOType),
+        help="Type of HPO to run",
+    )
     return parser.parse_args()
 
 
@@ -161,12 +305,9 @@ if __name__ == "__main__":
         direction="minimize",
     )
     study.optimize(
-        objective,
+        functools.partial(objective, h_type=args.type),
         n_trials=args.n_trials,
         timeout=None,
         show_progress_bar=True,
         callbacks=[NeptuneCallback(run)],  # type: ignore
     )
-    print(f"Best trial: {study.best_trial.number}")
-    print(f"Best value: {study.best_trial.value}")
-    print(f"Best params: {study.best_trial.params}")

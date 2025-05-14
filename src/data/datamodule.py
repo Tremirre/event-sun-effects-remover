@@ -114,6 +114,7 @@ class JointDataModule(BaseDataModule):
                 artifacts.HQFlareBasedAugmenter(
                     list(const.FLARES_DIR.glob("**/*.png"))
                 ),
+                artifacts.OverlitAugmenter(100, 300),
             ],
             probs=[self.p_flare, self.p_glare, self.p_sun, self.p_hq_flare],
         )

@@ -25,6 +25,7 @@ dotenv.load_dotenv()
 class HPOType(enum.Enum):
     DETECTOR = "detector"
     INPAINTER = "inpainter"
+    COMBINER = "combiner"
     OTHER = "other"
 
 
@@ -98,7 +99,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             lambda: trial.suggest_int("detector_kernel_size_half", 1, 3) * 2 + 1,
             h_type,
             HPOType.DETECTOR,
-            3,
+            1,
         ),
         activation_func=param_from_type(
             lambda: trial.suggest_categorical(
@@ -132,7 +133,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             ],
         ),
         h_type,
-        HPOType.OTHER,
+        HPOType.COMBINER,
         "simple_concat",
     )
     if combiner_name == "masked_removal":
@@ -140,7 +141,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             binarize=param_from_type(
                 lambda: trial.suggest_categorical("binarize", [True, False]),  # type: ignore
                 h_type,
-                HPOType.OTHER,
+                HPOType.COMBINER,
                 False,
             ),
             yuv_interpolation=param_from_type(
@@ -149,13 +150,13 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
                     [True, False],  # type: ignore
                 ),
                 h_type,
-                HPOType.OTHER,
+                HPOType.COMBINER,
                 False,
             ),
             soft_factor=param_from_type(
                 lambda: trial.suggest_categorical("soft_factor", [10, 0]),  # type: ignore
                 h_type,
-                HPOType.OTHER,
+                HPOType.COMBINER,
                 0,
             ),
         )
@@ -164,20 +165,20 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             out_channels=param_from_type(
                 lambda: trial.suggest_int("combiner_out_channels", 3, 6),
                 h_type,
-                HPOType.OTHER,
+                HPOType.COMBINER,
                 3,
             ),
             depth=param_from_type(
                 lambda: trial.suggest_int("combiner_depth", 1, 4),
                 h_type,
-                HPOType.OTHER,
+                HPOType.COMBINER,
                 2,
             ),
             kernel_size=param_from_type(
                 lambda: trial.suggest_int("combiner_kernel_size_half", 1, 3) * 2 + 1,
                 h_type,
-                HPOType.OTHER,
-                3,
+                HPOType.COMBINER,
+                1,
             ),
         )
     else:
@@ -201,7 +202,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             lambda: trial.suggest_int("inpainter_kernel_size_half", 1, 3) * 2 + 1,
             h_type,
             HPOType.INPAINTER,
-            3,
+            1,
         ),
         activation_func=param_from_type(
             lambda: trial.suggest_categorical(
@@ -299,7 +300,7 @@ if __name__ == "__main__":
     )
     study = optuna.create_study(
         study_name=args.study_name,
-        storage="sqlite:///.hpo.db",
+        storage=f"sqlite:///{args.study_name}-{args.type}-hpo.db",
         load_if_exists=True,
         pruner=pruner,
         direction="minimize",

@@ -328,4 +328,5 @@ class Config:
             p_glare=self.p_glare,
             p_flare=self.p_flare,
             p_hq_flare=self.p_hq_flare,
+            p_overlit=self.p_overlit,
         )

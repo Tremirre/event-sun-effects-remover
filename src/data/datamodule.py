@@ -96,6 +96,7 @@ class JointDataModule(BaseDataModule):
         p_sun: float = 0.0,
         p_glare: float = 0.0,
         p_hq_flare: float = 0.0,
+        p_overlit: float = 0.0,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -103,6 +104,7 @@ class JointDataModule(BaseDataModule):
         self.p_sun = p_sun
         self.p_glare = p_glare
         self.p_hq_flare = p_hq_flare
+        self.p_overlit = p_overlit
         logger.info("Initialized Joint Data module")
 
     def get_artifact_source(self) -> artifacts.CompositeLightArtifactGenerator:
@@ -116,7 +118,13 @@ class JointDataModule(BaseDataModule):
                 ),
                 artifacts.OverlitAugmenter(100, 300),
             ],
-            probs=[self.p_flare, self.p_glare, self.p_sun, self.p_hq_flare],
+            probs=[
+                self.p_flare,
+                self.p_glare,
+                self.p_sun,
+                self.p_hq_flare,
+                self.p_overlit,
+            ],
         )
 
     def setup(self, stage: str) -> None:

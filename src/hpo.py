@@ -267,7 +267,6 @@ def objective(trial: optuna.Trial, h_type: HPOType) -> float:
             PyTorchLightningPruningCallback(trial, monitor=target),
         ],
     )
-
     trainer.fit(model, data_module)
     val_loss = trainer.callback_metrics[target].item()
     return val_loss
@@ -316,4 +315,5 @@ if __name__ == "__main__":
         timeout=None,
         show_progress_bar=True,
         callbacks=[NeptuneCallback(run)],  # type: ignore
+        gc_after_trial=True,
     )

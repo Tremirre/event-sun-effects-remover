@@ -4,12 +4,10 @@ import functools
 import typing
 
 import dotenv
-import neptune
 import numpy as np
 import optuna
 import pytorch_lightning as pl
 import torch
-from neptune.integrations.optuna import NeptuneCallback
 
 from . import const
 from .data import datamodule
@@ -297,7 +295,6 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    run = neptune.init_run()
     pruner = optuna.pruners.SuccessiveHalvingPruner(
         min_resource=1,
         reduction_factor=2,
@@ -314,6 +311,5 @@ if __name__ == "__main__":
         n_trials=args.n_trials,
         timeout=None,
         show_progress_bar=True,
-        callbacks=[NeptuneCallback(run)],  # type: ignore
         gc_after_trial=True,
     )

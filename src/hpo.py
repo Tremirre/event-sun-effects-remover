@@ -184,49 +184,54 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
     else:
         combiner = combiners.get_combiner(combiner_name)
 
-    inpainter = models.UNet(
-        n_blocks=param_from_type(
-            lambda: trial.suggest_int("inpainter_n_blocks", 3, 4),
-            h_type,
-            HPOType.INPAINTER,
-            3,
-        ),
-        block_depth=param_from_type(
-            lambda: trial.suggest_int("inpainter_block_depth", 1, 4),
-            h_type,
-            HPOType.INPAINTER,
-            2,
-        ),
-        in_channels=combiner.get_output_channels(),
-        kernel_size=param_from_type(
-            lambda: trial.suggest_int("inpainter_kernel_size_half", 1, 3) * 2 + 1,
-            h_type,
-            HPOType.INPAINTER,
-            1,
-        ),
-        activation_func=param_from_type(
-            lambda: trial.suggest_categorical(
-                "inpainter_activation_func",
-                ["relu", "leakyrelu", "gelu", "elu", "mish"],
+    if h_type == HPOType.DETECTOR:
+        inpainter = models.NoOp(out_channels=const.CHANNELS_OUT)
+    else:
+        inpainter = models.UNet(
+            n_blocks=param_from_type(
+                lambda: trial.suggest_int("inpainter_n_blocks", 3, 4),
+                h_type,
+                HPOType.INPAINTER,
+                3,
             ),
-            h_type,
-            HPOType.INPAINTER,
-            "relu",
-        ),
-        batch_norm=param_from_type(
-            lambda: trial.suggest_categorical("inpainter_batch_norm", [True, False]),
-            h_type,
-            HPOType.INPAINTER,
-            True,
-        ),
-        with_fft=param_from_type(
-            lambda: trial.suggest_categorical("inpainter_with_fft", [True, False]),
-            h_type,
-            HPOType.INPAINTER,
-            False,
-        ),
-        out_channels=const.CHANNELS_OUT,
-    )
+            block_depth=param_from_type(
+                lambda: trial.suggest_int("inpainter_block_depth", 1, 4),
+                h_type,
+                HPOType.INPAINTER,
+                2,
+            ),
+            in_channels=combiner.get_output_channels(),
+            kernel_size=param_from_type(
+                lambda: trial.suggest_int("inpainter_kernel_size_half", 1, 3) * 2 + 1,
+                h_type,
+                HPOType.INPAINTER,
+                1,
+            ),
+            activation_func=param_from_type(
+                lambda: trial.suggest_categorical(
+                    "inpainter_activation_func",
+                    ["relu", "leakyrelu", "gelu", "elu", "mish"],
+                ),
+                h_type,
+                HPOType.INPAINTER,
+                "relu",
+            ),
+            batch_norm=param_from_type(
+                lambda: trial.suggest_categorical(
+                    "inpainter_batch_norm", [True, False]
+                ),
+                h_type,
+                HPOType.INPAINTER,
+                True,
+            ),
+            with_fft=param_from_type(
+                lambda: trial.suggest_categorical("inpainter_with_fft", [True, False]),
+                h_type,
+                HPOType.INPAINTER,
+                False,
+            ),
+            out_channels=const.CHANNELS_OUT,
+        )
     return modules.DetectorInpainterModule(
         detector=detector,
         combiner=combiner,
@@ -250,7 +255,7 @@ def objective(trial: optuna.Trial, h_type: HPOType) -> float:
     set_global_seed(trial.number)
     data_module = get_data_module(trial, h_type)
     model = get_model(trial, h_type)
-
+    target = "val_inpaint_loss" if h_type != HPOType.DETECTOR else "val_det_loss"
     trainer = pl.Trainer(
         max_epochs=EPOCHS,
         accelerator="gpu",
@@ -259,12 +264,12 @@ def objective(trial: optuna.Trial, h_type: HPOType) -> float:
         enable_checkpointing=False,
         enable_progress_bar=False,
         callbacks=[
-            PyTorchLightningPruningCallback(trial, monitor="val_inpaint_loss"),
+            PyTorchLightningPruningCallback(trial, monitor=target),
         ],
     )
 
     trainer.fit(model, data_module)
-    val_loss = trainer.callback_metrics["val_loss"].item()
+    val_loss = trainer.callback_metrics[target].item()
     return val_loss
 
 

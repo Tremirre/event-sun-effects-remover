@@ -273,9 +273,8 @@ def objective(trial: optuna.Trial, h_type: HPOType) -> float:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Hyperparameter Optimization")
     parser.add_argument(
-        "--study_name",
+        "--name",
         type=str,
-        default=".hpo",
         help="Name of the Optuna study",
     )
     parser.add_argument(
@@ -300,8 +299,8 @@ if __name__ == "__main__":
         reduction_factor=2,
     )
     study = optuna.create_study(
-        study_name=args.study_name,
-        storage=f"sqlite:///{args.study_name}-{args.type}-hpo.db",
+        study_name=args.name,
+        storage=f"sqlite:///{args.name}-{args.type.name}-hpo.db",
         load_if_exists=True,
         pruner=pruner,
         direction="minimize",

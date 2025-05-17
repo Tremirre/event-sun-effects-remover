@@ -289,6 +289,11 @@ def parse_args() -> argparse.Namespace:
         choices=list(HPOType),
         help="Type of HPO to run",
     )
+    parser.add_argument(
+        "--no-prune",
+        action="store_true",
+        help="Disable pruning",
+    )
     return parser.parse_args()
 
 
@@ -302,7 +307,7 @@ if __name__ == "__main__":
         study_name=args.name,
         storage=f"sqlite:///{args.name}-{args.type.name}-hpo.db",
         load_if_exists=True,
-        pruner=pruner,
+        pruner=pruner if not args.no_prune else None,
         direction="minimize",
     )
     study.optimize(

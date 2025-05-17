@@ -69,7 +69,7 @@ if __name__ == "__main__":
         for scene in scenes:
             filled_glob = SRC_GLOB.format(scene=scene)
             split_files.extend(list(SRC_PATH.glob(filled_glob)))
-        pbar = tqdm.tqdm(split_files, desc=f"Processing {split} files")
+        pbar = tqdm.tqdm(sorted(split_files), desc=f"Processing {split} files")
         for file in pbar:
             if not file.is_file():
                 pbar.set_postfix_str(f"Skipping {file} (not a file)")

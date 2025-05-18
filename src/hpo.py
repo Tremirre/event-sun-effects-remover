@@ -294,15 +294,26 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable pruning",
     )
+    parser.add_argument(
+        "--patient-pruner",
+        action="store_true",
+        help="Use patient pruner",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     pruner = optuna.pruners.SuccessiveHalvingPruner(
-        min_resource=1,
+        min_resource="auto",
         reduction_factor=2,
+        min_early_stopping_rate=2,
     )
+    if args.patient_pruner:
+        pruner = optuna.pruners.PatientPruner(
+            wrapped_pruner=pruner,
+            patience=5,
+        )
     study = optuna.create_study(
         study_name=args.name,
         storage=f"sqlite:///{args.name}-{args.type.name}-hpo.db",

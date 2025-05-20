@@ -124,6 +124,7 @@ class ConvolutionalCombiner(BaseCombiner):
 
 class EventConsideringCombiner(BaseCombiner):
     def __init__(self, kind: str = "or") -> None:
+        super().__init__()
         self.bgr_to_gray = TV.Grayscale(num_output_channels=1)
         self.kind = kind
         assert kind in ["or", "and"], f"Invalid kind: {kind}. Must be 'or' or 'and'."

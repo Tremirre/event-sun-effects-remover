@@ -253,7 +253,7 @@ def objective(trial: optuna.Trial, h_type: HPOType) -> float:
     set_global_seed(trial.number)
     data_module = get_data_module(trial, h_type)
     model = get_model(trial, h_type)
-    target = "val_inpaint_loss" if h_type != HPOType.DETECTOR else "val_det_loss"
+    target = "val_inpaint_loss" if h_type != HPOType.DETECTOR else "val_detection_loss"
     trainer = pl.Trainer(
         max_epochs=EPOCHS,
         accelerator="gpu",
@@ -289,20 +289,36 @@ def parse_args() -> argparse.Namespace:
         choices=list(HPOType),
         help="Type of HPO to run",
     )
+    parser.add_argument(
+        "--no-prune",
+        action="store_true",
+        help="Disable pruning",
+    )
+    parser.add_argument(
+        "--patient-pruner",
+        action="store_true",
+        help="Use patient pruner",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     pruner = optuna.pruners.SuccessiveHalvingPruner(
-        min_resource=1,
+        min_resource="auto",
         reduction_factor=2,
+        min_early_stopping_rate=2,
     )
+    if args.patient_pruner:
+        pruner = optuna.pruners.PatientPruner(
+            wrapped_pruner=pruner,
+            patience=5,
+        )
     study = optuna.create_study(
         study_name=args.name,
         storage=f"sqlite:///{args.name}-{args.type.name}-hpo.db",
         load_if_exists=True,
-        pruner=pruner,
+        pruner=pruner if not args.no_prune else None,
         direction="minimize",
     )
     study.optimize(

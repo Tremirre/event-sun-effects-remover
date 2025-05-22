@@ -122,10 +122,34 @@ class ConvolutionalCombiner(BaseCombiner):
         return self.conv(x)
 
 
+class EventConsideringCombiner(BaseCombiner):
+    def __init__(self, kind: str = "or") -> None:
+        super().__init__()
+        self.bgr_to_gray = TV.Grayscale(num_output_channels=1)
+        self.kind = kind
+        assert kind in ["or", "and"], f"Invalid kind: {kind}. Must be 'or' or 'and'."
+
+    def get_output_channels(self) -> int:
+        return 5
+
+    def forward(self, x: torch.Tensor, artifact_map: torch.Tensor) -> torch.Tensor:
+        bgr_channels = x[:, :3, :, :]
+        event_reconstruction = x[:, 3:4, :, :]
+        mask = artifact_map
+        gs = self.bgr_to_gray(bgr_channels)
+        gs_over_event = gs - event_reconstruction
+        gs_over_event = torch.clamp(gs_over_event, 0, 1)
+        adjusted_mask = gs_over_event * mask
+        if self.kind == "or":
+            adjusted_mask = gs_over_event + mask - adjusted_mask
+        return torch.cat((bgr_channels, event_reconstruction, adjusted_mask), dim=1)
+
+
 COMBINERS = {
     "simple_concat": SimpleConcatCombiner,
     "masked_removal": MaskedRemovalCombiner,
     "convolutional": ConvolutionalCombiner,
+    "event_considering": EventConsideringCombiner,
 }
 
 

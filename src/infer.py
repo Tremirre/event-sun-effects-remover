@@ -130,6 +130,7 @@ if __name__ == "__main__":
         cv2.VideoWriter_fourcc(*"mp4v"),  # type: ignore
         30,
         (all_estimate_maps[0].shape[1], all_estimate_maps[0].shape[0]),
+        isColor=False,
     )
     for img in all_estimate_maps:
         out.write(img)
@@ -141,3 +142,6 @@ if __name__ == "__main__":
         30,
         (all_rec_frames[0].shape[1], all_rec_frames[0].shape[0]),
     )
+    for img in all_rec_frames:
+        out.write(img)
+    out.release()

@@ -86,7 +86,7 @@ def tensor_to_numpy_img(tensor: torch.Tensor) -> np.ndarray:
         tensor = tensor.unsqueeze(0)
     assert tensor.ndim == 4
     tensor = tensor.permute(0, 2, 3, 1)  # (B, H, W, C)
-    np_arr = (tensor.cpu().numpy() * 255.0).astype(np.uint8)
+    np_arr = (tensor.detach().cpu().numpy() * 255.0).astype(np.uint8)
     return np_arr
 
 

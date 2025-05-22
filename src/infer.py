@@ -28,7 +28,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 @dataclasses.dataclass
 class InferArgs:
     config: Config
-    weigths_path: pathlib.Path
+    weights_path: pathlib.Path
     input_dir: pathlib.Path
     output_dir: pathlib.Path
 
@@ -37,7 +37,7 @@ class InferArgs:
             data = json.loads(self.config.read_text())
             self.config = Config(**data)
         assert isinstance(self.config, Config), "Config must be a Config object"
-        assert self.weigths_path.exists(), "Weights path does not exist"
+        assert self.weights_path.exists(), "Weights path does not exist"
         assert self.input_dir.exists(), "Input directory does not exist"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -76,7 +76,7 @@ class InferArgs:
     def get_model(self) -> pl.LightningModule:
         model = self.config.get_model()
         model.load_state_dict(
-            torch.load(self.weigths_path, map_location=DEVICE)["state_dict"]
+            torch.load(self.weights_path, map_location=DEVICE)["state_dict"]
         )
         return model
 

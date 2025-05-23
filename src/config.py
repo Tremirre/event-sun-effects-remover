@@ -301,7 +301,9 @@ class Config:
 
     def get_data_module(self) -> datamodule.BaseDataModule:
         train_paths = sorted(self.train_dir.glob(const.DATA_PATTERN))  # type: ignore
-        train_paths = [p for p in train_paths if p.match(self.img_glob)]
+        train_paths = [
+            p for p in train_paths if any(p.match(g) for g in self.img_glob.split(","))
+        ]  # type: ignore
         val_paths = sorted(self.val_dir.glob(const.DATA_PATTERN))  # type: ignore
         test_paths = sorted(self.test_dir.glob(const.DATA_PATTERN))  # type: ignore
         ref_paths = sorted(self.ref_dir.glob(const.DATA_PATTERN))  # type: ignore

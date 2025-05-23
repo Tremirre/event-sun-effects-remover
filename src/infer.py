@@ -28,7 +28,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 @dataclasses.dataclass
 class InferArgs:
     config: Config
-    weigths_path: pathlib.Path
+    weights_path: pathlib.Path
     input_dir: pathlib.Path
     output_dir: pathlib.Path
 
@@ -37,7 +37,7 @@ class InferArgs:
             data = json.loads(self.config.read_text())
             self.config = Config(**data)
         assert isinstance(self.config, Config), "Config must be a Config object"
-        assert self.weigths_path.exists(), "Weights path does not exist"
+        assert self.weights_path.exists(), "Weights path does not exist"
         assert self.input_dir.exists(), "Input directory does not exist"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -76,7 +76,7 @@ class InferArgs:
     def get_model(self) -> pl.LightningModule:
         model = self.config.get_model()
         model.load_state_dict(
-            torch.load(self.weigths_path, map_location=DEVICE)["state_dict"]
+            torch.load(self.weights_path, map_location=DEVICE)["state_dict"]
         )
         return model
 
@@ -86,7 +86,7 @@ def tensor_to_numpy_img(tensor: torch.Tensor) -> np.ndarray:
         tensor = tensor.unsqueeze(0)
     assert tensor.ndim == 4
     tensor = tensor.permute(0, 2, 3, 1)  # (B, H, W, C)
-    np_arr = (tensor.cpu().numpy() * 255.0).astype(np.uint8)
+    np_arr = (tensor.detach().cpu().numpy() * 255.0).astype(np.uint8)
     return np_arr
 
 
@@ -130,6 +130,7 @@ if __name__ == "__main__":
         cv2.VideoWriter_fourcc(*"mp4v"),  # type: ignore
         30,
         (all_estimate_maps[0].shape[1], all_estimate_maps[0].shape[0]),
+        isColor=False,
     )
     for img in all_estimate_maps:
         out.write(img)
@@ -141,3 +142,6 @@ if __name__ == "__main__":
         30,
         (all_rec_frames[0].shape[1], all_rec_frames[0].shape[0]),
     )
+    for img in all_rec_frames:
+        out.write(img)
+    out.release()

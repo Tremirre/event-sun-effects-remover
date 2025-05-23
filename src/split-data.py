@@ -31,6 +31,7 @@ ASSINGMENT = {
         "interlaken_00_c",
         "interlaken_00_f",
         "zurich_00_b",
+        "zurich_city_04_a",
         "zurich_city_05_b",
         "zurich_city_06_a",
         "back3",

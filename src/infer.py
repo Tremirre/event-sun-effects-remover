@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import json
 import logging
 import pathlib
 
@@ -34,8 +33,7 @@ class InferArgs:
 
     def __post_init__(self):
         if isinstance(self.config, pathlib.Path):
-            data = json.loads(self.config.read_text())
-            self.config = Config(**data)
+            self.config = Config.from_json(self.config)
         assert isinstance(self.config, Config), "Config must be a Config object"
         assert self.weights_path.exists(), "Weights path does not exist"
         assert self.input_dir.exists(), "Input directory does not exist"

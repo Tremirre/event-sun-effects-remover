@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import argparse
 import dataclasses
+import json
 import pathlib
 import re
 
@@ -102,7 +105,7 @@ class Config:
             )
 
     @classmethod
-    def from_args(cls):
+    def from_args(cls) -> Config:
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "--ref-dir",
@@ -233,6 +236,15 @@ class Config:
             help="Probability of an overlit augmentation in artifact detector",
         )
         return cls(**vars(parser.parse_args()))
+
+    @classmethod
+    def from_json(cls, json_path: pathlib.Path) -> Config:
+        json_data = json.loads(json_path.read_text())
+        field_names = {f.name for f in dataclasses.fields(cls)}
+        filtered_json_data = {
+            key: value for key, value in json_data.items() if key in field_names
+        }
+        return cls(**filtered_json_data)
 
     def __post_init__(self):
         assert 0 <= self.p_sun <= 1, "Probability of sun augmentation must be in [0, 1]"

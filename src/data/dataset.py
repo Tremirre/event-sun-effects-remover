@@ -71,7 +71,6 @@ class BGREADataset(torch.utils.data.Dataset):
         # y -> BGR + Artifact Map
         for transform in self.transform.transforms:  # type: ignore
             if hasattr(transform, "reset"):
-                print(f"Resetting transform: {transform}")
                 transform.reset()
 
         img = np.load(self.img_paths[idx])

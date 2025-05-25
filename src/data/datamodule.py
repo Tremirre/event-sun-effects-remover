@@ -156,7 +156,7 @@ class JointDataModule(BaseDataModule):
                 ),
                 artifact_source=artifacts.LightArtifactExtractor(),
             )
-        if stage == "" or stage is None:
+        if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREADataset(
                 self.test_paths,
                 transform=T.Compose(

@@ -129,3 +129,78 @@ class DiffIntensityMasker:
 
     def progress(self) -> None:
         pass
+
+
+class BGRColorJitter:
+    def __init__(
+        self,
+        brightness: float = 0.0,
+        contrast: float = 0.0,
+        saturation: float = 0.0,
+    ):
+        self.brightness = brightness
+        self.contrast = contrast
+        self.saturation = saturation
+
+        assert all(0 <= factor <= 1 for factor in (brightness, contrast, saturation)), (
+            "Factors must be between 0 and 1"
+        )
+
+        self.brightness_factor = 1.0
+        self.contrast_factor = 1.0
+        self.saturation_factor = 1.0
+
+    def is_enabled(self) -> bool:
+        return any(
+            factor > 0 for factor in (self.brightness, self.contrast, self.saturation)
+        )
+
+    def reset(self) -> None:
+        self.brightness_factor = 1.0 + np.random.uniform(
+            -self.brightness, self.brightness
+        )
+        self.contrast_factor = 1.0 + np.random.uniform(-self.contrast, self.contrast)
+        self.saturation_factor = 1.0 + np.random.uniform(
+            -self.saturation, self.saturation
+        )
+
+    def __call__(self, img: np.ndarray) -> np.ndarray:
+        assert isinstance(img, np.ndarray), "Input must be a NumPy array"
+        assert img.ndim >= 3 and img.shape[-1] >= 3, (
+            "Image must have at least 3 channels"
+        )
+        if not self.is_enabled():
+            return img
+
+        img = img.astype(np.float32)
+
+        bgr = img[..., :3]
+        other = img[..., 3:] if img.shape[-1] > 3 else None
+
+        # Brightness
+        if self.brightness > 0:
+            bgr = bgr * self.brightness_factor
+
+        # Contrast
+        if self.contrast > 0:
+            mean = bgr.mean(axis=(0, 1), keepdims=True)
+            bgr = (bgr - mean) * self.contrast_factor + mean
+
+        # Saturation (via conversion to HSV)
+        if self.saturation > 0:
+            bgr_uint8 = np.clip(bgr, 0, 255).astype(np.uint8)
+            hsv = cv2.cvtColor(bgr_uint8, cv2.COLOR_BGR2HSV).astype(np.float32)
+            hsv[..., 1] *= self.saturation_factor
+            hsv[..., 1] = np.clip(hsv[..., 1], 0, 255)
+            bgr = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR).astype(
+                np.float32
+            )
+
+        bgr = np.clip(bgr, 0, 255)
+
+        if other is not None:
+            img = np.concatenate([bgr, other], axis=-1)
+        else:
+            img = bgr
+
+        return img.astype(np.uint8)

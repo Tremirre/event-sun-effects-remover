@@ -69,6 +69,11 @@ class BGREADataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         # x -> BGR + Event Reconstruction
         # y -> BGR + Artifact Map
+        for transform in self.transform.transforms:  # type: ignore
+            if hasattr(transform, "reset"):
+                print(f"Resetting transform: {transform}")
+                transform.reset()
+
         img = np.load(self.img_paths[idx])
         img = self.fill_event(img)
         out = img[:, :, :3].copy()

@@ -50,6 +50,9 @@ class Config:
     log_tensorboard: bool = False
     run_tags: str = "default"
     save: bool = False
+    color_jitter_kwargs: dict[str, str | int | bool] = dataclasses.field(
+        default_factory=dict
+    )
     p_sun: float = 0.4
     p_glare: float = 0.4
     p_flare: float = 0.4
@@ -206,6 +209,11 @@ class Config:
             help="Glob pattern for train image files",
         )
         parser.add_argument(
+            "--color-jitter-kwargs",
+            type=lambda x: cls.parse_kwargs(x),
+            default="",
+        )
+        parser.add_argument(
             "--p-sun",
             type=float,
             default=0.4,
@@ -343,4 +351,5 @@ class Config:
             p_flare=self.p_flare,
             p_hq_flare=self.p_hq_flare,
             p_overlit=self.p_overlit,
+            color_jitter_kwargs=self.color_jitter_kwargs,
         )

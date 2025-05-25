@@ -97,6 +97,7 @@ class JointDataModule(BaseDataModule):
         p_glare: float = 0.0,
         p_hq_flare: float = 0.0,
         p_overlit: float = 0.0,
+        color_jitter_kwargs: dict | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -105,6 +106,7 @@ class JointDataModule(BaseDataModule):
         self.p_glare = p_glare
         self.p_hq_flare = p_hq_flare
         self.p_overlit = p_overlit
+        self.color_jitter_kwargs = color_jitter_kwargs or {}
         logger.info("Initialized Joint Data module")
 
     def get_artifact_source(self) -> artifacts.CompositeLightArtifactGenerator:
@@ -134,6 +136,7 @@ class JointDataModule(BaseDataModule):
                 self.train_paths,
                 transform=T.Compose(
                     [
+                        transforms.BGRColorJitter(**self.color_jitter_kwargs),
                         transforms.RandomizedEventBrightnessScaler(0.5, 1.5),
                         transforms.RandomizedEventContrastScaler(0.5, 1.5),
                         transforms.RandomizedEventSunAdder(0.05),
@@ -153,7 +156,7 @@ class JointDataModule(BaseDataModule):
                 ),
                 artifact_source=artifacts.LightArtifactExtractor(),
             )
-        if stage == "test" or stage is None:
+        if stage == "" or stage is None:
             self.test_dataset = dataset.BGREADataset(
                 self.test_paths,
                 transform=T.Compose(

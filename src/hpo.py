@@ -84,7 +84,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             lambda: trial.suggest_int("detector_n_blocks", 3, 4),
             h_type,
             HPOType.DETECTOR,
-            3,
+            4,
         ),
         block_depth=param_from_type(
             lambda: trial.suggest_int("detector_block_depth", 1, 4),
@@ -97,7 +97,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             lambda: trial.suggest_int("detector_kernel_size_half", 1, 3) * 2 + 1,
             h_type,
             HPOType.DETECTOR,
-            1,
+            3,
         ),
         activation_func=param_from_type(
             lambda: trial.suggest_categorical(
@@ -105,7 +105,7 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
             ),
             h_type,
             HPOType.DETECTOR,
-            "relu",
+            "leakyrelu",
         ),
         batch_norm=param_from_type(
             lambda: trial.suggest_categorical("detector_batch_norm", [True, False]),
@@ -196,14 +196,14 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
                 lambda: trial.suggest_int("inpainter_block_depth", 1, 4),
                 h_type,
                 HPOType.INPAINTER,
-                2,
+                3,
             ),
             in_channels=combiner.get_output_channels(),
             kernel_size=param_from_type(
                 lambda: trial.suggest_int("inpainter_kernel_size_half", 1, 3) * 2 + 1,
                 h_type,
                 HPOType.INPAINTER,
-                1,
+                3,
             ),
             activation_func=param_from_type(
                 lambda: trial.suggest_categorical(

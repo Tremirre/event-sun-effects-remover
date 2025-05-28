@@ -123,11 +123,10 @@ class ConvolutionalCombiner(BaseCombiner):
 
 
 class EventConsideringCombiner(BaseCombiner):
-    def __init__(self, kind: str = "or") -> None:
+    def __init__(self, blending_factor: float = 0.5) -> None:
         super().__init__()
         self.bgr_to_gray = TV.Grayscale(num_output_channels=1)
-        self.kind = kind
-        assert kind in ["or", "and"], f"Invalid kind: {kind}. Must be 'or' or 'and'."
+        self.blending_factor = blending_factor
 
     def get_output_channels(self) -> int:
         return 5
@@ -137,11 +136,14 @@ class EventConsideringCombiner(BaseCombiner):
         event_reconstruction = x[:, 3:4, :, :]
         mask = artifact_map
         gs = self.bgr_to_gray(bgr_channels)
-        gs_over_event = gs - event_reconstruction
-        gs_over_event = torch.clamp(gs_over_event, 0, 1)
-        adjusted_mask = gs_over_event * mask
-        if self.kind == "or":
-            adjusted_mask = gs_over_event + mask - adjusted_mask
+        diff = torch.relu(gs - event_reconstruction)
+
+        diff_min = diff.amin(dim=(2, 3), keepdim=True)
+        diff_max = diff.amax(dim=(2, 3), keepdim=True)
+        diff = (diff - diff_min) / (diff_max - diff_min + 1e-6)
+        adjusted_mask = mask + self.blending_factor * diff
+        adjusted_mask = torch.clamp(adjusted_mask, 0, 1)
+        adjusted_mask = adjusted_mask.unsqueeze(1)
         return torch.cat((bgr_channels, event_reconstruction, adjusted_mask), dim=1)
 
 

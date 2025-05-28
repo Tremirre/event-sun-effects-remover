@@ -143,7 +143,6 @@ class EventConsideringCombiner(BaseCombiner):
         diff = (diff - diff_min) / (diff_max - diff_min + 1e-6)
         adjusted_mask = mask + self.blending_factor * diff
         adjusted_mask = torch.clamp(adjusted_mask, 0, 1)
-        adjusted_mask = adjusted_mask.unsqueeze(1)
         return torch.cat((bgr_channels, event_reconstruction, adjusted_mask), dim=1)
 
 

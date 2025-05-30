@@ -266,3 +266,12 @@ class PyTorchLightningPruningCallback(Callback):
         if is_pruned:
             epoch = _trial_system_attrs.get(_EPOCH_KEY)
             raise optuna.TrialPruned(f"Trial was pruned at epoch {epoch}.")
+
+
+def tensor_to_numpy_img(tensor: torch.Tensor) -> np.ndarray:
+    if tensor.ndim == 3:
+        tensor = tensor.unsqueeze(0)
+    assert tensor.ndim == 4
+    tensor = tensor.permute(0, 2, 3, 1)  # (B, H, W, C)
+    np_arr = (tensor.detach().cpu().numpy() * 255.0).astype(np.uint8)
+    return np_arr

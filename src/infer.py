@@ -14,6 +14,7 @@ import tqdm
 
 from src.config import Config
 from src.data import dataset, transforms
+from src.utils import tensor_to_numpy_img
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s %(name)s %(levelname)s] %(message)s"
@@ -79,15 +80,6 @@ class InferArgs:
         return model
 
 
-def tensor_to_numpy_img(tensor: torch.Tensor) -> np.ndarray:
-    if tensor.ndim == 3:
-        tensor = tensor.unsqueeze(0)
-    assert tensor.ndim == 4
-    tensor = tensor.permute(0, 2, 3, 1)  # (B, H, W, C)
-    np_arr = (tensor.detach().cpu().numpy() * 255.0).astype(np.uint8)
-    return np_arr
-
-
 if __name__ == "__main__":
     infer_args = InferArgs.from_args()
     model = infer_args.get_model().to(DEVICE)
@@ -113,8 +105,8 @@ if __name__ == "__main__":
     num_batches = len(infer_loader)
     logger.info(f"Starting inference on {num_batches} batches")
     iter_batches = tqdm.tqdm(infer_loader, total=num_batches)
-    all_estimate_maps = []
-    all_rec_frames = []
+    all_estimate_maps: list[np.ndarray] = []
+    all_rec_frames: list[np.ndarray] = []
     for x, y in iter_batches:
         est_map, rec_frames = model(x.to(DEVICE))
         all_estimate_maps.extend(tensor_to_numpy_img(est_map))

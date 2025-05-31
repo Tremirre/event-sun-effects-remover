@@ -146,11 +146,40 @@ class EventConsideringCombiner(BaseCombiner):
         return torch.cat((bgr_channels, event_reconstruction, adjusted_mask), dim=1)
 
 
+class EventMaskedRemovalCombiner(BaseCombiner):
+    def __init__(
+        self,
+        binarize: bool = False,
+        yuv_interpolation: bool = False,
+        soft_factor: float = 0,
+        blending_factor: float = 0.5,
+    ) -> None:
+        super().__init__()
+        self.masked_removal = MaskedRemovalCombiner(
+            binarize=binarize,
+            yuv_interpolation=yuv_interpolation,
+            soft_factor=soft_factor,
+        )
+        self.event_considering = EventConsideringCombiner(
+            blending_factor=blending_factor
+        )
+
+    def get_output_channels(self) -> int:
+        return self.masked_removal.get_output_channels()
+
+    def forward(self, x: torch.Tensor, artifact_map: torch.Tensor) -> torch.Tensor:
+        event_combined = self.event_considering(x, artifact_map)
+        return self.masked_removal(
+            event_combined[:, :4, :, :], event_combined[:, 4, :, :]
+        )
+
+
 COMBINERS = {
     "simple_concat": SimpleConcatCombiner,
     "masked_removal": MaskedRemovalCombiner,
     "convolutional": ConvolutionalCombiner,
     "event_considering": EventConsideringCombiner,
+    "event_masked_removal": EventMaskedRemovalCombiner,
 }
 
 

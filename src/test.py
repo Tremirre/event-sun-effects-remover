@@ -85,7 +85,7 @@ class TestArgs:
 
 
 def make_test_dataset(test_paths: list[str]) -> dataset.BGREADataset:
-    full_paths = [const.TEST_DIR / p for p in test_paths]
+    full_paths = [next(const.TEST_DIR.glob(f"**/{p}")) for p in test_paths]
     path_exists = [p.exists() for p in full_paths]
     if not all(path_exists):
         missing_paths = [p for p, exists in zip(full_paths, path_exists) if not exists]

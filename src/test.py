@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-TEST_ART_SPLIT = json.loads((const.SPLIT_DIR / "test_artifacts.json").read_text())
+TEST_ART_SPLIT = json.loads((const.SPLIT_DIR / "test_artifact_source.json").read_text())
 FLARES_TEST = const.FLARES_DIR / "test"
 
 

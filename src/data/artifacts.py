@@ -278,9 +278,9 @@ class CompositeLightArtifactGenerator(ArtifactSource):
         probs: list[float],
         exclusive: bool = False,
     ):
-        assert len(augmenters) == len(
-            probs
-        ), "Augmenters and probs must have same length"
+        assert len(augmenters) == len(probs), (
+            "Augmenters and probs must have same length"
+        )
         self.augmenters = augmenters
         self.probs = probs
 
@@ -297,16 +297,24 @@ class SingleChoiceArtifactSource(ArtifactSource):
     def __init__(
         self, augmenters: list[BaseLightArtifactGenerator], probs: list[float]
     ):
-        assert len(augmenters) == len(
-            probs
-        ), "Augmenters and probs must have same length"
+        assert len(augmenters) == len(probs), (
+            "Augmenters and probs must have same length"
+        )
         self.augmenters = augmenters
         self.probs = probs
+        self.last_idx = -1
+
+    @property
+    def last_augmenter(self) -> BaseLightArtifactGenerator:
+        if self.last_idx == -1:
+            raise ValueError("No augmenter has been called yet")
+        return self.augmenters[self.last_idx]
 
     def __call__(self, img: np.ndarray) -> np.ndarray:
         idx = np.random.choice(len(self.augmenters), p=self.probs)
         augmenter = self.augmenters[idx]
         target_shape = img.shape[:2] + (3,)
+        self.last_idx = idx
         return augmenter(target_shape)
 
 

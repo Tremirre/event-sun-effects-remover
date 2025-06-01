@@ -1,3 +1,4 @@
+import json
 import pathlib
 
 import numpy as np
@@ -13,10 +14,11 @@ def get_artifact_source() -> artifacts.SingleChoiceArtifactSource:
             artifacts.LensFlareAdder(1, 10, 1, 20, 0.6, 0.9, 0.2),
             artifacts.VeilingGlareAdder(10, 150, 10, 60, 0.3),
             artifacts.SunAdder(4, 25, 0.0, 0.5, 0.3, 0.8),
+            artifacts.OverlitAugmenter(100, 300),
             artifacts.HQFlareBasedAugmenter(list(const.FLARES_DIR.glob("**/*.png"))),
             artifacts.NoOpAugmenter(),
         ],
-        probs=[0.2, 0.1, 0.2, 0.45, 0.05],
+        probs=[0.175, 0.1, 0.175, 0.05, 0.45, 0.05],
     )
 
 
@@ -57,6 +59,12 @@ ASSINGMENT = {
 if __name__ == "__main__":
     np.random.seed(0)
     generator = get_artifact_source()
+    artifact_source_used = {
+        split: {aug.__class__.__name__: [] for aug in generator.augmenters}
+        for split in ASSINGMENT.keys()
+        if split != "train"
+    }
+
     for split, scenes in ASSINGMENT.items():
         split_path = TARGET_PATH / split
         split_path.mkdir(parents=True, exist_ok=True)
@@ -86,8 +94,15 @@ if __name__ == "__main__":
 
             if split != "train":
                 artifact_map = generator(img)
+                artifact_source_used[split][
+                    generator.last_augmenter.__class__.__name__
+                ].append(file.name)
                 img = np.dstack([img, artifact_map])
                 suffix += " (+ artifact map)"
 
             np.save(target_path, img)
             pbar.set_postfix_str(f"Saved {target_path}{suffix}")
+
+    for split, used in artifact_source_used.items():
+        with open(TARGET_PATH / f"{split}_artifact_source.json", "w") as f:
+            json.dump(used, f, indent=4)

@@ -32,12 +32,14 @@ class MaskedRemovalCombiner(BaseCombiner):
         binarize: bool = False,
         yuv_interpolation: bool = False,
         soft_factor: float = 0,
+        threshold: float = 0.0,
     ):
         super().__init__()
         self.binarize = binarize
         self.yuv_interpolation = yuv_interpolation
         self.kernel_size = soft_factor * 2 + 1
         self.soft_factor = soft_factor
+        self.threshold = threshold
         self.gaussian_blur = (
             TV.GaussianBlur(self.kernel_size, sigma=self.soft_factor)
             if soft_factor > 0
@@ -85,7 +87,7 @@ class MaskedRemovalCombiner(BaseCombiner):
         event_reconstruction = x[:, 3:4, :, :]
         mask = artifact_map
         if self.binarize:
-            mask = (mask > 0.0).float()
+            mask = (mask > self.threshold).float()
             if self.gaussian_blur is not None:
                 mask = self.gaussian_blur(mask)
 
@@ -153,12 +155,14 @@ class EventMaskedRemovalCombiner(BaseCombiner):
         yuv_interpolation: bool = False,
         soft_factor: float = 0,
         blending_factor: float = 0.5,
+        threshold: float = 0.0,
     ) -> None:
         super().__init__()
         self.masked_removal = MaskedRemovalCombiner(
             binarize=binarize,
             yuv_interpolation=yuv_interpolation,
             soft_factor=soft_factor,
+            threshold=threshold,
         )
         self.event_considering = EventConsideringCombiner(
             blending_factor=blending_factor

@@ -30,6 +30,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 TEST_ART_SPLIT = json.loads((const.SPLIT_DIR / "test_artifact_source.json").read_text())
 FLARES_TEST = const.FLARES_DIR / "test"
+THRESHOLD = 0.05  # Threshold for artifact detection
 
 
 @dataclasses.dataclass
@@ -149,14 +150,16 @@ def main():
             expected_mask = y[:, 3]
             with torch.no_grad():
                 est_map, rec_frames = model(x.to(DEVICE))
+                est_map = est_map.cpu()
+                rec_frames = rec_frames.cpu()
 
             for metric_name, metric_fn in COMMON_METRICS["removal"].items():
                 removal_metrics[metric_name].append(
                     float(metric_fn(rec_frames, expected_frames))
                 )
             for metric_name, metric_fn in COMMON_METRICS["detection"].items():
-                preds = est_map > 0.05
-                targets = expected_mask > 0.05
+                preds = est_map > THRESHOLD
+                targets = expected_mask > THRESHOLD
                 detection_metrics[metric_name].append(float(metric_fn(preds, targets)))
 
         avg_removal_metrics = {k: sum(v) / len(v) for k, v in removal_metrics.items()}
@@ -182,8 +185,10 @@ def main():
         mask_tensor = T.ToTensor()(mask).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
             est_map, _ = model.detector(bgr_img_tensor)
-        preds = est_map > 0.05
-        targets = mask_tensor > 0.05
+            est_map = est_map.cpu()
+
+        preds = est_map > THRESHOLD
+        targets = mask_tensor > THRESHOLD
         for metric_name, metric_fn in COMMON_METRICS["detection"].items():
             all_metrics["real"]["detection"]["flare7k"][metric_name].append(
                 float(metric_fn(preds, targets))
@@ -206,8 +211,9 @@ def main():
         mask_tensor = T.ToTensor()(mask).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
             est_map, _ = model.detector(bgr_img_tensor)
-        preds = est_map > 0.05
-        targets = mask_tensor > 0.05
+            est_map = est_map.cpu()
+        preds = est_map > THRESHOLD
+        targets = mask_tensor > THRESHOLD
         for metric_name, metric_fn in COMMON_METRICS["detection"].items():
             all_metrics["real"]["detection"]["event"][metric_name].append(
                 float(metric_fn(preds, targets))

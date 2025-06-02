@@ -8,3 +8,4 @@ rec
 lightning_logs
 .env
 .neptune
+.history

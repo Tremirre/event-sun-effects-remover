@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 TEST_ART_SPLIT = json.loads((const.SPLIT_DIR / "test_artifact_source.json").read_text())
-FLARES_TEST = const.FLARES_DIR / "test"
+FLARES_TEST = const.DATA_DIR / "detect" / "test"
 THRESHOLD = 0.05  # Threshold for artifact detection
 
 

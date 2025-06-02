@@ -79,9 +79,11 @@ class TestArgs:
 
     def get_model(self) -> modules.DetectorInpainterModule:
         model = self.config.get_model()
-        model.load_state_dict(
-            torch.load(self.weights_path, map_location=DEVICE)["state_dict"]
-        )
+        weights = torch.load(self.weights_path, map_location=DEVICE)
+        if "state_dict" in weights:
+            # If the weights are saved with a state_dict key
+            weights = weights["state_dict"]
+        model.load_state_dict(weights)
         return typing.cast(modules.DetectorInpainterModule, model)
 
 

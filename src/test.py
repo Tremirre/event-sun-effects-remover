@@ -179,6 +179,8 @@ def main():
 
     logger.info(f"Found {len(real_flare_paths)} real flare images")
     logger.info("Starting detection on real flare images")
+    all_metrics["real"]["detection"]["flare7k"] = defaultdict(list)
+    all_metrics["real"]["detection"]["event"] = defaultdict(list)
     for real_path in tqdm.tqdm(real_flare_paths):
         real_img = np.load(real_path)
         bgr_img = real_img[..., :3]

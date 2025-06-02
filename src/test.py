@@ -188,8 +188,7 @@ def main():
         bgr_img_tensor = T.ToTensor()(bgr_img).unsqueeze(0).to(DEVICE)
         mask_tensor = T.ToTensor()(mask).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
-            est_map, _ = model.detector(bgr_img_tensor)
-            est_map = est_map.cpu()
+            est_map = model.detector(bgr_img_tensor).cpu()
 
         preds = est_map > THRESHOLD
         targets = mask_tensor > THRESHOLD
@@ -214,8 +213,7 @@ def main():
         bgr_img_tensor = T.ToTensor()(bgr_img).unsqueeze(0).to(DEVICE)
         mask_tensor = T.ToTensor()(mask).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
-            est_map, _ = model.detector(bgr_img_tensor)
-            est_map = est_map.cpu()
+            est_map = model.detector(bgr_img_tensor).cpu()
         preds = est_map > THRESHOLD
         targets = mask_tensor > THRESHOLD
         for metric_name, metric_fn in COMMON_METRICS["detection"].items():

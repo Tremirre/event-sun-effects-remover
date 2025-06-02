@@ -225,6 +225,8 @@ def main():
         k: sum(v) / len(v) for k, v in all_metrics["real"]["detection"]["event"].items()
     }
     logger.info(f"Real dataset detection metrics: {avg_detection_metrics}")
+    with open(args.output_dir / "test_metrics.json", "w") as f:
+        json.dump(all_metrics, f, indent=4)
 
 
 if __name__ == "__main__":

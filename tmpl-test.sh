@@ -32,7 +32,7 @@ for directory in $FINAL_RECS_DIR*; do
         stem=$(basename "$directory")
         mkdir -p "$WORKDIR/$stem"
 
-        python -m src.infer --config $CONFIG \
+        conda run -n masters --no-capture-output python -m src.infer --config $CONFIG \
             --weights-path $MODEL \
             --output-dir "$WORKDIR/$stem" \
             --input-dir "$directory"

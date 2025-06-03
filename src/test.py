@@ -156,9 +156,16 @@ def main():
                 rec_frames = rec_frames.cpu()
 
             for metric_name, metric_fn in COMMON_METRICS["removal"].items():
-                removal_metrics[metric_name].append(
-                    float(metric_fn(rec_frames.cpu(), expected_frames.cpu()))
-                )
+                if metric_name == "vgg":
+                    removal_metrics[metric_name].append(
+                        float(
+                            metric_fn(rec_frames.to(DEVICE), expected_frames.to(DEVICE))
+                        )
+                    )
+                else:
+                    removal_metrics[metric_name].append(
+                        float(metric_fn(rec_frames.cpu(), expected_frames.cpu()))
+                    )
             for metric_name, metric_fn in COMMON_METRICS["detection"].items():
                 preds = est_map > THRESHOLD
                 targets = expected_mask > THRESHOLD

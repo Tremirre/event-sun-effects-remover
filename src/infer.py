@@ -69,6 +69,12 @@ class InferArgs:
             required=True,
             help="Path to the output directory to save results",
         )
+        parser.add_argument(
+            "--batch-size",
+            type=int,
+            default=8,
+            help="Batch size for inference",
+        )
 
         return cls(**vars(parser.parse_args()))
 
@@ -97,7 +103,7 @@ if __name__ == "__main__":
     )
     infer_loader = torch.utils.data.DataLoader(
         infer_dataset,
-        batch_size=infer_args.config.batch_size,
+        batch_size=infer_args.batch_size,
         num_workers=4,
         shuffle=False,
         persistent_workers=True,

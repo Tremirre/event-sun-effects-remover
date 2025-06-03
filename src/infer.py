@@ -31,6 +31,7 @@ class InferArgs:
     weights_path: pathlib.Path
     input_dir: pathlib.Path
     output_dir: pathlib.Path
+    batch_size: int = 8
 
     def __post_init__(self):
         if isinstance(self.config, pathlib.Path):

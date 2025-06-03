@@ -157,12 +157,14 @@ def main():
 
             for metric_name, metric_fn in COMMON_METRICS["removal"].items():
                 removal_metrics[metric_name].append(
-                    float(metric_fn(rec_frames, expected_frames))
+                    float(metric_fn(rec_frames.cpu(), expected_frames.cpu()))
                 )
             for metric_name, metric_fn in COMMON_METRICS["detection"].items():
                 preds = est_map > THRESHOLD
                 targets = expected_mask > THRESHOLD
-                detection_metrics[metric_name].append(float(metric_fn(preds, targets)))
+                detection_metrics[metric_name].append(
+                    float(metric_fn(preds.cpu(), targets.cpu()))
+                )
 
         avg_removal_metrics = {k: sum(v) / len(v) for k, v in removal_metrics.items()}
         avg_detection_metrics = {
@@ -194,7 +196,7 @@ def main():
         targets = mask_tensor > THRESHOLD
         for metric_name, metric_fn in COMMON_METRICS["detection"].items():
             all_metrics["real"]["detection"]["flare7k"][metric_name].append(
-                float(metric_fn(preds, targets))
+                float(metric_fn(preds.cpu(), targets.cpu()))
             )
     avg_detection_metrics = {
         k: sum(v) / len(v)
@@ -218,7 +220,7 @@ def main():
         targets = mask_tensor > THRESHOLD
         for metric_name, metric_fn in COMMON_METRICS["detection"].items():
             all_metrics["real"]["detection"]["event"][metric_name].append(
-                float(metric_fn(preds, targets))
+                float(metric_fn(preds.cpu(), targets.cpu()))
             )
 
     avg_detection_metrics = {

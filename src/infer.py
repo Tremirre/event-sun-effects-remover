@@ -115,8 +115,8 @@ if __name__ == "__main__":
     all_rec_frames: list[np.ndarray] = []
     for x, y in iter_batches:
         est_map, rec_frames = model(x.to(DEVICE))
-        all_estimate_maps.extend(tensor_to_numpy_img(est_map))
-        all_rec_frames.extend(tensor_to_numpy_img(rec_frames))
+        all_estimate_maps.extend(tensor_to_numpy_img(est_map.cpu()))
+        all_rec_frames.extend(tensor_to_numpy_img(rec_frames.cpu()))
 
     map_out = infer_args.output_dir / "estimate_map.mp4"
     rec_out = infer_args.output_dir / "reconstructed.mp4"

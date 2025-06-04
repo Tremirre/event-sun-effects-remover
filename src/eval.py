@@ -93,6 +93,7 @@ def read_video(
 
 BRISQUE = brisque.BRISQUE()
 VGG = VGGLoss().to(DEVICE)
+THRESHOLD = 0.5
 
 
 def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, float]:
@@ -119,6 +120,25 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
         "mae": mae,
     }
     return {k: float(v) for k, v in res.items()}
+
+
+def eval_est_frames(est_frame: np.ndarray, post_frame: np.ndarray) -> dict[str, float]:
+    est_mean = np.mean(est_frame)
+    post_mean = np.mean(post_frame)
+    mean_diff = est_mean - post_mean
+    mean_rel_diff = mean_diff / (est_mean + 1e-6)  # Avoid division by zero
+
+    est_over_threshold = np.mean(est_frame > THRESHOLD)
+    post_over_threshold = np.mean(post_frame > THRESHOLD)
+
+    return {
+        "est_mean": est_mean,
+        "post_mean": post_mean,
+        "mean_diff": mean_diff,
+        "mean_rel_diff": mean_rel_diff,
+        "est_over_threshold": est_over_threshold,
+        "post_over_threshold": post_over_threshold,
+    }
 
 
 def main():
@@ -159,6 +179,14 @@ def main():
         scores = eval_frames(ref_frame, test_frame)
         scores["vmaf"] = vmaf["vmaf"]
         all_scores.append(scores)
+
+    iter_est_frames = enumerate(zip(est_map, post_map, strict=True))
+    pbar = tqdm.tqdm(
+        iter_est_frames, total=len(ref_video), desc="Calculating maps scores"
+    )
+    for i, (est_frame, post_frame) in pbar:
+        map_scores = eval_est_frames(est_frame, post_frame)
+        all_scores[i].update(map_scores)
 
     avg_scores = {
         k: float(np.mean([s[k] for s in all_scores])) for k in all_scores[0].keys()

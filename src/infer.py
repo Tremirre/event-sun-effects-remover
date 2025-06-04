@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 import tqdm
 
+from src import const
 from src.config import Config
 from src.data import dataset, transforms
 from src.model.modules import DetectorInpainterModule
@@ -123,9 +124,9 @@ if __name__ == "__main__":
         all_rec_frames.extend(tensor_to_numpy_img(rec_frames.cpu()))
         all_post_estimate_maps.extend(tensor_to_numpy_img(post_est_map.cpu()))
 
-    map_out = infer_args.output_dir / "estimate_map.mp4"
-    post_map_out = infer_args.output_dir / "post_estimate_map.mp4"
-    rec_out = infer_args.output_dir / "reconstructed.mp4"
+    map_out = infer_args.output_dir / const.TEST_EST_MAP_OUT
+    post_map_out = infer_args.output_dir / const.TEST_POST_EST_MAP_OUT
+    rec_out = infer_args.output_dir / const.TEST_REC_FRAMES_OUT
     logger.info(f"Saving estimate map to {map_out}")
     out = cv2.VideoWriter(
         str(map_out),

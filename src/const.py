@@ -15,3 +15,7 @@ DATA_PATTERN = "**/*.npy"
 
 REF_DIR = DATA_DIR / "ref"
 FLARES_DIR = DATA_DIR / "detect" / "flare"
+
+TEST_EST_MAP_OUT = "estimate_map.mp4"
+TEST_POST_EST_MAP_OUT = "post_estimate_map.mp4"
+TEST_REC_FRAMES_OUT = "reconstructed.mp4"

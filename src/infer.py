@@ -7,13 +7,14 @@ import pathlib
 
 import cv2
 import numpy as np
-import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as T
 import tqdm
 
 from src.config import Config
 from src.data import dataset, transforms
+from src.model.modules import DetectorInpainterModule
 from src.utils import tensor_to_numpy_img
 
 logging.basicConfig(
@@ -79,7 +80,7 @@ class InferArgs:
 
         return cls(**vars(parser.parse_args()))
 
-    def get_model(self) -> pl.LightningModule:
+    def get_model(self) -> DetectorInpainterModule:
         model = self.config.get_model()
         model.load_state_dict(
             torch.load(self.weights_path, map_location=DEVICE)["state_dict"]
@@ -114,12 +115,16 @@ if __name__ == "__main__":
     iter_batches = tqdm.tqdm(infer_loader, total=num_batches)
     all_estimate_maps: list[np.ndarray] = []
     all_rec_frames: list[np.ndarray] = []
+    all_post_estimate_maps: list[np.ndarray] = []
     for x, y in iter_batches:
         est_map, rec_frames = model(x.to(DEVICE))
+        post_est_map = F.sigmoid(model.detector(rec_frames.detach()))
         all_estimate_maps.extend(tensor_to_numpy_img(est_map.cpu()))
         all_rec_frames.extend(tensor_to_numpy_img(rec_frames.cpu()))
+        all_post_estimate_maps.extend(tensor_to_numpy_img(post_est_map.cpu()))
 
     map_out = infer_args.output_dir / "estimate_map.mp4"
+    post_map_out = infer_args.output_dir / "post_estimate_map.mp4"
     rec_out = infer_args.output_dir / "reconstructed.mp4"
     logger.info(f"Saving estimate map to {map_out}")
     out = cv2.VideoWriter(
@@ -127,6 +132,17 @@ if __name__ == "__main__":
         cv2.VideoWriter_fourcc(*"mp4v"),  # type: ignore
         30,
         (all_estimate_maps[0].shape[1], all_estimate_maps[0].shape[0]),
+        isColor=False,
+    )
+    for img in all_estimate_maps:
+        out.write(img)
+    out.release()
+    logger.info(f"Saving post estimate map to {post_map_out}")
+    out = cv2.VideoWriter(
+        str(post_map_out),
+        cv2.VideoWriter_fourcc(*"mp4v"),  # type: ignore
+        30,
+        (all_post_estimate_maps[0].shape[1], all_estimate_maps[0].shape[0]),
         isColor=False,
     )
     for img in all_estimate_maps:

@@ -17,6 +17,8 @@ import tqdm
 
 from src.loss import VGGLoss
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s %(name)s %(levelname)s] %(message)s"
 )
@@ -35,7 +37,6 @@ class EvalArgs:
         assert self.output_path.parent.exists(), "Output directory does not exist"
         if self.output_path.suffix != ".json":
             self.output_path = self.output_path.with_suffix(".json")
-        assert not self.output_path.exists(), "Output file already exists"
 
     @classmethod
     def from_args(cls) -> EvalArgs:
@@ -90,15 +91,22 @@ def read_video(
 
 
 BRISQUE = brisque.BRISQUE()
+VGG = VGGLoss().to(DEVICE)
 
 
 def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, float]:
     ref_brisque = BRISQUE.score(ref_frame)
     test_brisque = BRISQUE.score(test_frame)
     diff_brisque = ref_brisque - test_brisque
-    ref_torch = torch.from_numpy(ref_frame).float().permute(2, 0, 1).unsqueeze(0)
-    test_torch = torch.from_numpy(test_frame).float().permute(2, 0, 1).unsqueeze(0)
-    vgg_loss = VGGLoss()(ref_torch, test_torch).item()
+    ref_torch = (
+        torch.from_numpy(ref_frame).float().permute(2, 0, 1).unsqueeze(0).to(DEVICE)
+        / 255.0
+    )
+    test_torch = (
+        torch.from_numpy(test_frame).float().permute(2, 0, 1).unsqueeze(0).to(DEVICE)
+        / 255.0
+    )
+    vgg_loss = VGG(ref_torch, test_torch).item()
     ssim = msssim.ms_ssim(ref_torch, test_torch).item()
     mae = F.l1_loss(ref_torch, test_torch).item()
     res = {
@@ -138,7 +146,7 @@ def main():
     all_scores: list[dict[str, float]] = []
     for ref_frame, test_frame, vmaf in pbar:
         scores = eval_frames(ref_frame, test_frame)
-        scores["vmaf"] = vmaf
+        scores["vmaf"] = vmaf["vmaf"]
         all_scores.append(scores)
 
     avg_scores = {

@@ -142,10 +142,10 @@ if __name__ == "__main__":
         str(post_map_out),
         cv2.VideoWriter_fourcc(*"mp4v"),  # type: ignore
         30,
-        (all_post_estimate_maps[0].shape[1], all_estimate_maps[0].shape[0]),
+        (all_post_estimate_maps[0].shape[1], all_post_estimate_maps[0].shape[0]),
         isColor=False,
     )
-    for img in all_estimate_maps:
+    for img in all_post_estimate_maps:
         out.write(img)
     out.release()
     logger.info(f"Saving reconstructed frames to {rec_out}")

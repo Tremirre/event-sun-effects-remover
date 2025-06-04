@@ -58,7 +58,7 @@ class DetectorInpainterModule(BaseModule):
         self, inpaint_out: torch.Tensor, target: torch.Tensor, stage: str = ""
     ) -> torch.Tensor:
         mae = F.l1_loss(inpaint_out, target)
-        ssim = 1 - msssim.ms_ssim(inpaint_out, target)
+        ssim = 1 - msssim.ms_ssim(inpaint_out, target, data_range=1.0)
         vgg_loss = self.vgg_loss(inpaint_out, target)
         tv_loss = self.tv_loss(inpaint_out)
         if stage:

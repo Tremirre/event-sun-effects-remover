@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
+from src import const
 from src.loss import VGGLoss
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -28,12 +29,12 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class EvalArgs:
     reference_video: pathlib.Path
-    test_video: pathlib.Path
+    test_res_dir: pathlib.Path
     output_path: pathlib.Path
 
     def __post_init__(self):
         assert self.reference_video.exists(), "Reference video does not exist"
-        assert self.test_video.exists(), "Test video does not exist"
+        assert self.test_res_dir.exists(), "Test directory does not exist"
         assert self.output_path.parent.exists(), "Output directory does not exist"
         if self.output_path.suffix != ".json":
             self.output_path = self.output_path.with_suffix(".json")
@@ -50,10 +51,10 @@ class EvalArgs:
         )
         parser.add_argument(
             "-t",
-            "--test-video",
+            "--test-res-dir",
             type=pathlib.Path,
             required=True,
-            help="Path to the test video file",
+            help="Path to the test dir with video files",
         )
         parser.add_argument(
             "-o",
@@ -107,7 +108,7 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
         / 255.0
     )
     vgg_loss = VGG(ref_torch, test_torch).item()
-    ssim = msssim.ms_ssim(ref_torch, test_torch).item()
+    ssim = msssim.ms_ssim(ref_torch, test_torch, data_range=1.0).item()
     mae = F.l1_loss(ref_torch, test_torch).item()
     res = {
         "ref_brisque": ref_brisque,
@@ -122,8 +123,18 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
 
 def main():
     args = EvalArgs.from_args()
+    test_video_path = args.test_res_dir / const.TEST_REC_FRAMES_OUT
+    est_map_path = args.test_res_dir / const.TEST_EST_MAP_OUT
+    post_map_path = args.test_res_dir / const.TEST_POST_MAP_OUT
+
+    logger.info(f"Reference video path: {args.reference_video}")
+    logger.info(f"Test video path: {test_video_path}")
+    logger.info(f"Estimated map path: {est_map_path}")
+    logger.info(f"Post-processed map path: {post_map_path}")
     ref_video = read_video(args.reference_video)
-    test_video = read_video(args.test_video)
+    test_video = read_video(test_video_path)
+    est_map = read_video(est_map_path)
+    post_map = read_video(post_map_path)
     logger.info(
         f"Reference video shape: {ref_video.shape}, Test video shape: {test_video.shape}"
     )
@@ -136,7 +147,7 @@ def main():
 
     fqm_evaluator = fqm.FfmpegQualityMetrics(
         str(args.reference_video),
-        str(args.test_video),
+        str(test_video_path),
     )
     fpm_scores = fqm_evaluator.calculate(["vmaf"])
 

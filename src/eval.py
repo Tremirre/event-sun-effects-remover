@@ -134,7 +134,6 @@ def eval_est_frames(est_frame: np.ndarray, post_frame: np.ndarray) -> dict[str, 
     return {
         "est_mean": est_mean,
         "post_mean": post_mean,
-        "mean_diff": mean_diff,
         "mean_rel_diff": mean_rel_diff,
         "est_over_threshold": est_over_threshold,
         "post_over_threshold": post_over_threshold,

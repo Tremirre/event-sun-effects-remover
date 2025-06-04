@@ -125,7 +125,7 @@ def main():
     args = EvalArgs.from_args()
     test_video_path = args.test_res_dir / const.TEST_REC_FRAMES_OUT
     est_map_path = args.test_res_dir / const.TEST_EST_MAP_OUT
-    post_map_path = args.test_res_dir / const.TEST_POST_MAP_OUT
+    post_map_path = args.test_res_dir / const.TEST_POST_EST_MAP_OUT
 
     logger.info(f"Reference video path: {args.reference_video}")
     logger.info(f"Test video path: {test_video_path}")

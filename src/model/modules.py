@@ -77,7 +77,7 @@ class DetectorInpainterModule(BaseModule):
         inpaint_in_masked = inpaint_in * (1 - artifact_map)
         inpaint_out_masked = inpaint_out * (1 - artifact_map)
         mae = F.l1_loss(inpaint_out_masked, inpaint_in_masked)
-        ssim = 1 - msssim.ms_ssim(inpaint_out_masked, inpaint_in_masked)
+        ssim = 1 - msssim.ms_ssim(inpaint_out_masked, inpaint_in_masked, data_range=1.0)
         return mae + 0.5 * ssim
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:

@@ -111,6 +111,8 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
     vgg_loss = VGG(ref_torch, test_torch).item()
     ssim = msssim.ms_ssim(ref_torch, test_torch, data_range=1.0).item()
     mae = F.l1_loss(ref_torch, test_torch).item()
+    ref_mean_intensity = np.mean(cv2.cvtColor(ref_frame, cv2.COLOR_BGR2GRAY))
+    test_mean_intensity = np.mean(cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY))
     res = {
         "ref_brisque": ref_brisque,
         "test_brisque": test_brisque,
@@ -118,6 +120,8 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
         "vgg_loss": vgg_loss,
         "ssim": ssim,
         "mae": mae,
+        "ref_mean_intensity": ref_mean_intensity,
+        "test_mean_intensity": test_mean_intensity,
     }
     return {k: float(v) for k, v in res.items()}
 

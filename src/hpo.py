@@ -249,11 +249,17 @@ def get_model(trial: optuna.Trial, h_type: HPOType) -> modules.DetectorInpainter
     )
 
 
+TARGET_MAP = {
+    HPOType.DETECTOR: "val_detection_loss",
+    HPOType.INPAINTER: "val_inpaint_loss",
+}
+
+
 def objective(trial: optuna.Trial, h_type: HPOType) -> float:
     set_global_seed(trial.number)
     data_module = get_data_module(trial, h_type)
     model = get_model(trial, h_type)
-    target = "val_inpaint_loss" if h_type != HPOType.DETECTOR else "val_detection_loss"
+    target = TARGET_MAP.get(h_type, "val_total_loss")
     trainer = pl.Trainer(
         max_epochs=EPOCHS,
         accelerator="gpu",

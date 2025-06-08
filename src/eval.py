@@ -16,7 +16,6 @@ import torch.nn.functional as F
 import tqdm
 
 from src import const
-from src.loss import VGGLoss
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -92,7 +91,6 @@ def read_video(
 
 
 BRISQUE = brisque.BRISQUE()
-VGG = VGGLoss().to(DEVICE)
 THRESHOLD = 0.5
 
 
@@ -108,7 +106,6 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
         torch.from_numpy(test_frame).float().permute(2, 0, 1).unsqueeze(0).to(DEVICE)
         / 255.0
     )
-    vgg_loss = VGG(ref_torch, test_torch).item()
     ssim = msssim.ms_ssim(ref_torch, test_torch, data_range=1.0).item()
     mae = F.l1_loss(ref_torch, test_torch).item()
     mse = F.mse_loss(ref_torch, test_torch).item()
@@ -118,7 +115,6 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
         "ref_brisque": ref_brisque,
         "test_brisque": test_brisque,
         "diff_brisque": diff_brisque,
-        "vgg_loss": vgg_loss,
         "ssim": ssim,
         "mae": mae,
         "mse": mse,

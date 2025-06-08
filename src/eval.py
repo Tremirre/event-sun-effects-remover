@@ -111,6 +111,7 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
     vgg_loss = VGG(ref_torch, test_torch).item()
     ssim = msssim.ms_ssim(ref_torch, test_torch, data_range=1.0).item()
     mae = F.l1_loss(ref_torch, test_torch).item()
+    mse = F.mse_loss(ref_torch, test_torch).item()
     ref_mean_intensity = np.mean(cv2.cvtColor(ref_frame, cv2.COLOR_BGR2GRAY))
     test_mean_intensity = np.mean(cv2.cvtColor(test_frame, cv2.COLOR_BGR2GRAY))
     res = {
@@ -120,6 +121,7 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
         "vgg_loss": vgg_loss,
         "ssim": ssim,
         "mae": mae,
+        "mse": mse,
         "ref_mean_intensity": ref_mean_intensity,
         "test_mean_intensity": test_mean_intensity,
     }
@@ -129,16 +131,12 @@ def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, floa
 def eval_est_frames(est_frame: np.ndarray, post_frame: np.ndarray) -> dict[str, float]:
     est_mean = np.mean(est_frame)
     post_mean = np.mean(post_frame)
-    mean_diff = est_mean - post_mean
-    mean_rel_diff = mean_diff / (est_mean + 1e-6)  # Avoid division by zero
-
     est_over_threshold = np.mean(est_frame > THRESHOLD)
     post_over_threshold = np.mean(post_frame > THRESHOLD)
 
     return {
         "est_mean": est_mean,
         "post_mean": post_mean,
-        "mean_rel_diff": mean_rel_diff,
         "est_over_threshold": est_over_threshold,
         "post_over_threshold": post_over_threshold,
     }
@@ -172,15 +170,18 @@ def main():
         str(args.reference_video),
         str(test_video_path),
     )
-    fpm_scores = fqm_evaluator.calculate(["vmaf"])
+    fpm_scores = fqm_evaluator.calculate(["vmaf", "psnr"])
 
     logger.info("Calculating frame-wise scores")
-    iter_frames = zip(ref_video, test_video, fpm_scores["vmaf"], strict=True)
+    iter_frames = zip(
+        ref_video, test_video, fpm_scores["vmaf"], fpm_scores["psnr"], strict=True
+    )
     pbar = tqdm.tqdm(iter_frames, total=len(ref_video), desc="Calculating scores")
     all_scores: list[dict[str, float]] = []
-    for ref_frame, test_frame, vmaf in pbar:
+    for ref_frame, test_frame, vmaf, psnr in pbar:
         scores = eval_frames(ref_frame, test_frame)
         scores["vmaf"] = vmaf["vmaf"]
+        scores["psnr"] = psnr["psnr"]
         all_scores.append(scores)
 
     iter_est_frames = enumerate(zip(est_map, post_map, strict=True))

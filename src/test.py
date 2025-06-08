@@ -108,12 +108,20 @@ def make_test_dataset(test_paths: list[str]) -> dataset.BGREADataset:
 COMMON_METRICS = {
     "removal": {
         "mae": lambda x, y: F.l1_loss(x, y).item(),
+        "mse": lambda x, y: F.mse_loss(x, y).item(),
+        "mape": lambda x, y: F.l1_loss(x, y) / (y.abs().mean() + 1e-8),
+        "psnr": lambda x, y: 20 * torch.log10(1 / F.mse_loss(x, y).sqrt()).item(),
         "mssim": lambda x, y: msssim.ms_ssim(x, y).item(),
     },
     "detection": {
         "accuracy": lambda preds, targets: (preds == targets).float().mean().item(),
         "iou": lambda preds, targets: (
             (preds & targets).float().sum() / (preds | targets).float().sum()
+        ).item(),
+        "f1_score": lambda preds, targets: (
+            2
+            * (preds & targets).float().sum()
+            / ((preds | targets).float().sum() + 1e-8)
         ).item(),
     },
 }

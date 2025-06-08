@@ -140,7 +140,6 @@ def main():
     logger.info(f"Loading model from {args.weights_path}")
     model = args.get_model().eval()
     model.to(DEVICE)
-    COMMON_METRICS["removal"]["vgg"] = model.vgg_loss  # type: ignore
 
     all_metrics: dict = {"artificial": defaultdict(dict), "real": defaultdict(dict)}  # type: ignore
 

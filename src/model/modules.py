@@ -99,7 +99,10 @@ class DetectorInpainterModule(BaseModule):
     ) -> dict[str, torch.Tensor]:
         x, y = batch
         artifact_map, inpaint_out = self(x)
-        detection_loss = self.detector_loss(artifact_map, y[:, 3, :, :])
+        detection_loss = torch.tensor(0.0, device=x.device)  # Default to zero
+
+        if any(p.requires_grad for p in self.detector.parameters()):
+            detection_loss = self.detector_loss(artifact_map, y[:, 3, :, :])
         inpaint_loss = self.inpainter_loss(inpaint_out, y[:, :3, :, :], stage=stage)
         total_loss = detection_loss + inpaint_loss
         non_mask_res = {}

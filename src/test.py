@@ -45,6 +45,7 @@ class TestArgs:
             self.config = Config.from_json(self.config)
         assert isinstance(self.config, Config), "Config must be a Config object"
         assert self.weights_path.exists(), "Weights path does not exist"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     @classmethod
     def from_args(cls) -> TestArgs:

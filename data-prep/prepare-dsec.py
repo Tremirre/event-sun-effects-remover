@@ -103,7 +103,7 @@ def read_events_h5(path: pathlib.Path) -> tuple[np.ndarray, np.ndarray]:
         ts = (f["events"]["t"][()].astype(np.int64) + offset) // 1_000
         pol = f["events"]["p"][()].astype(np.int32)
         events = np.array([ts, x, y, pol]).T
-        ms_to_idx = f["ms_to_idx"][()].astype(np.int32)
+        ms_to_idx = f["ms_to_idx"][()].astype(np.int64)
         return events, ms_to_idx
 
 

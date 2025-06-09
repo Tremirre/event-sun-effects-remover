@@ -194,9 +194,9 @@ class Frames:
     timestamps: np.ndarray
 
     def __post_init__(self):
-        assert (
-            self.array.shape[0] == self.timestamps.shape[0]
-        ), "Array and timestamps should have the same length"
+        assert self.array.shape[0] == self.timestamps.shape[0], (
+            "Array and timestamps should have the same length"
+        )
 
     @property
     def num_frames(self) -> int:
@@ -217,7 +217,7 @@ class Frames:
         ts_path: pathlib.Path,
         calib_path: pathlib.Path,
     ) -> Frames:
-        timestamps = np.loadtxt(ts_path).astype(int)
+        timestamps = np.loadtxt(ts_path).astype(np.int64)
 
         with open(calib_path) as f:
             calib = yaml.safe_load(f)
@@ -241,9 +241,9 @@ class AlignMeta:
         data = json.loads(path.read_text())
         homographies = np.array(data["homographies"])
         assert len(homographies.shape) == 3, "There should be a list of homographies"
-        assert (
-            homographies.shape[1] == 3 and homographies.shape[2] == 3
-        ), "Invalid shape"
+        assert homographies.shape[1] == 3 and homographies.shape[2] == 3, (
+            "Invalid shape"
+        )
         offset_ms = data["temporal_offset"]
         return cls(homographies, offset_ms)
 

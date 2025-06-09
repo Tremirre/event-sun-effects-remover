@@ -161,7 +161,9 @@ def main():
 
             for i in range(len(expected_frames)):
                 for metric_name, metric_fn in COMMON_METRICS["removal"].items():
-                    m_val = float(metric_fn(rec_frames[i], expected_frames[i]))
+                    m_val = float(
+                        metric_fn(rec_frames[i : i + 1], expected_frames[i : i + 1])
+                    )
                     all_metrics.append(
                         {
                             "kind": kind,
@@ -171,8 +173,8 @@ def main():
                         }
                     )
                 for metric_name, metric_fn in COMMON_METRICS["detection"].items():
-                    preds = est_map[i] > THRESHOLD
-                    targets = expected_mask[i] > THRESHOLD
+                    preds = est_map[i : i + 1] > THRESHOLD
+                    targets = expected_mask[i : i + 1] > THRESHOLD
                     m_val = float(metric_fn(preds, targets))
                     all_metrics.append(
                         {

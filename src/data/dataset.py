@@ -39,12 +39,8 @@ class BGREADataset(torch.utils.data.Dataset):
         target_shape = img.shape[:2] + (3,)
         return np.zeros(target_shape, dtype=np.uint8)
 
-    def fill_event(self, img: np.ndarray) -> np.ndarray:
-        if self.no_events:
-            img_gs = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY)
-            img[:, :, 3] = img_gs
-            return img
-
+    @staticmethod
+    def fill_event(img: np.ndarray) -> np.ndarray:
         if img.shape[-1] < 5:  # no event mask
             return img
 
@@ -86,6 +82,9 @@ class BGREADataset(torch.utils.data.Dataset):
         out = img[:, :, :3].copy()
         art_map = self.artifact_source(img)
         img[:, :, :3] = cv2.add(img[:, :, :3], art_map)
+        if self.no_events:
+            img_gs = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY)
+            img[:, :, 3] = img_gs
         art_map_gs = cv2.cvtColor(art_map, cv2.COLOR_BGR2GRAY)
         out = np.concatenate([out, art_map_gs[:, :, np.newaxis]], axis=-1)
 

@@ -58,6 +58,7 @@ class Config:
     p_flare: float = 0.4
     p_hq_flare: float = 0.4
     p_overlit: float = 0.4
+    no_events: bool = False
 
     def serialized_kwargs(self, field: str) -> str:
         kwargs = getattr(self, field)
@@ -243,6 +244,11 @@ class Config:
             default=0.4,
             help="Probability of an overlit augmentation in artifact detector",
         )
+        parser.add_argument(
+            "--no-events",
+            action="store_true",
+            help="Mock all events in the data module as grayscale",
+        )
         return cls(**vars(parser.parse_args()))
 
     @classmethod
@@ -352,4 +358,5 @@ class Config:
             p_hq_flare=self.p_hq_flare,
             p_overlit=self.p_overlit,
             color_jitter_kwargs=self.color_jitter_kwargs,
+            no_events=self.no_events,
         )

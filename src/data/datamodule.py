@@ -98,6 +98,7 @@ class JointDataModule(BaseDataModule):
         p_hq_flare: float = 0.0,
         p_overlit: float = 0.0,
         color_jitter_kwargs: dict | None = None,
+        no_events: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -107,7 +108,10 @@ class JointDataModule(BaseDataModule):
         self.p_hq_flare = p_hq_flare
         self.p_overlit = p_overlit
         self.color_jitter_kwargs = color_jitter_kwargs or {}
+        self.no_events = no_events
         logger.info("Initialized Joint Data module")
+        if no_events:
+            logger.info("No events will be used in the dataset")
 
     def get_artifact_source(self) -> artifacts.CompositeLightArtifactGenerator:
         return artifacts.CompositeLightArtifactGenerator(
@@ -145,6 +149,7 @@ class JointDataModule(BaseDataModule):
                     ]
                 ),
                 artifact_source=self.get_artifact_source(),
+                no_events=self.no_events,
             )
             self.val_dataset = dataset.BGREADataset(
                 self.val_paths,
@@ -155,6 +160,7 @@ class JointDataModule(BaseDataModule):
                     ]
                 ),
                 artifact_source=artifacts.LightArtifactExtractor(),
+                no_events=self.no_events,
             )
         if stage == "test" or stage is None:
             self.test_dataset = dataset.BGREADataset(
@@ -166,6 +172,7 @@ class JointDataModule(BaseDataModule):
                     ]
                 ),
                 artifact_source=artifacts.LightArtifactExtractor(),
+                no_events=self.no_events,
             )
         if stage == "ref" or stage is None:
             self.ref_dataset = dataset.BGREADataset(
@@ -176,4 +183,5 @@ class JointDataModule(BaseDataModule):
                         T.ToTensor(),
                     ]
                 ),
+                no_events=self.no_events,
             )

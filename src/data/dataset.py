@@ -26,24 +26,32 @@ class BGREADataset(torch.utils.data.Dataset):
         img_paths: list[pathlib.Path],
         transform: Transform,
         artifact_source: ArtifactSource | None = None,
+        no_events: bool = False,
     ) -> None:
         super().__init__()
         self.img_paths = img_paths
         self.transform = transform
         self.artifact_source = artifact_source or self.no_source
+        self.no_events = no_events
 
     @staticmethod
     def no_source(img: np.ndarray) -> np.ndarray:
         target_shape = img.shape[:2] + (3,)
         return np.zeros(target_shape, dtype=np.uint8)
 
-    @staticmethod
-    def fill_event(img: np.ndarray) -> np.ndarray:
+    def fill_event(self, img: np.ndarray) -> np.ndarray:
+        if self.no_events:
+            img_gs = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY)
+            img[:, :, 3] = img_gs
+            return img
+
         if img.shape[-1] < 5:  # no event mask
             return img
+
         mask = img[:, :, 4]
         if (mask > 0).all():
             return img
+
         rec = img[:, :, 3]
         bgr = img[:, :, :3]
         gs = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)

@@ -128,10 +128,10 @@ def eval_est_frames(est_frame: np.ndarray, post_frame: np.ndarray) -> dict[str, 
     post_over_threshold = np.mean(post_frame > THRESHOLD)
 
     return {
-        "est_mean": est_mean,
-        "post_mean": post_mean,
-        "est_over_threshold": est_over_threshold,
-        "post_over_threshold": post_over_threshold,
+        "est_mean": float(est_mean),
+        "post_mean": float(post_mean),
+        "est_over_threshold": float(est_over_threshold),
+        "post_over_threshold": float(post_over_threshold),
     }
 
 

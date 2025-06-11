@@ -35,14 +35,14 @@ for directory in $FINAL_RECS_DIR*; do
 
         conda run -n masters --no-capture-output python -m src.infer --config $CONFIG \
             --weights-path $MODEL \
-            --output-dir "$WORKDIR/$stem" \
+            --output-dir "$WORKDIR$stem" \
             --input-dir "$directory" \
             --batch-size 4
 
         conda run -n masters --no-capture-output python -m src.eval \
             -t $WORKDIR \
-            -r "$VIDDIR/$stem.mp4" \
-            -o "$WORKDIR/$stem/refscores.json"
+            -r "$VIDDIR$stem.mp4" \
+            -o "$WORKDIR$stem/refscores.json"
 
         if [ $? -ne 0 ]; then
             echo "Inference failed for directory: $directory"

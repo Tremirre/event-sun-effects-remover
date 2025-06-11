@@ -40,7 +40,7 @@ for directory in $FINAL_RECS_DIR*; do
             --batch-size 4
 
         conda run -n masters --no-capture-output python -m src.eval \
-            -t "$WORKDIR$stem/reconstructed.mp4" \
+            -t "$WORKDIR$stem" \
             -r "$VIDDIR$stem.mp4" \
             -o "$WORKDIR$stem/refscores.json"
 

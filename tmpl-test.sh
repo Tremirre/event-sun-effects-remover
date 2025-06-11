@@ -11,6 +11,7 @@ ID="466"
 CONFIG="pretrained/ours/$ID/config.json"
 MODEL="pretrained/ours/$ID/model.pth"
 WORKDIR="data/test-res/$ID/"
+VIDDIR = "data/videos/"
 FINAL_RECS_DIR="data/final/"
 
 mkdir -p $WORKDIR
@@ -37,6 +38,11 @@ for directory in $FINAL_RECS_DIR*; do
             --output-dir "$WORKDIR/$stem" \
             --input-dir "$directory" \
             --batch-size 4
+
+        conda run -n masters --no-capture-output python -m src.eval \
+            -t $WORKDIR \
+            -r "$VIDDIR/$stem.mp4" \
+            -o "$WORKDIR/$stem/refscores.json"
 
         if [ $? -ne 0 ]; then
             echo "Inference failed for directory: $directory"

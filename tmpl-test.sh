@@ -11,7 +11,7 @@ ID="466"
 CONFIG="pretrained/ours/$ID/config.json"
 MODEL="pretrained/ours/$ID/model.pth"
 WORKDIR="data/test-res/$ID/"
-VIDDIR = "data/videos/"
+VIDDIR="data/videos/"
 FINAL_RECS_DIR="data/final/"
 
 mkdir -p $WORKDIR
@@ -40,7 +40,7 @@ for directory in $FINAL_RECS_DIR*; do
             --batch-size 4
 
         conda run -n masters --no-capture-output python -m src.eval \
-            -t $WORKDIR \
+            -t "$WORKDIR$stem/reconstructed.mp4" \
             -r "$VIDDIR$stem.mp4" \
             -o "$WORKDIR$stem/refscores.json"
 

@@ -29,7 +29,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 TEST_ART_SPLIT = json.loads((const.SPLIT_DIR / "test_artifact_source.json").read_text())
 FLARES_TEST = const.DATA_DIR / "detect" / "test"
-THRESHOLD = 0.05  # Threshold for artifact detection
+THRESHOLDS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.5]  # Thresholds for artifact detection
 
 
 @dataclasses.dataclass
@@ -105,6 +105,16 @@ def make_test_dataset(test_paths: list[str]) -> dataset.BGREADataset:
     )
 
 
+def f1_score(preds: torch.Tensor, targets: torch.Tensor) -> float:
+    """Calculate F1 score for binary masks."""
+    tp = (preds & targets).float().sum()
+    fp = (preds & ~targets).float().sum()
+    fn = (~preds & targets).float().sum()
+    if tp + fp + fn == 0:
+        return 0.0
+    return (2 * tp) / (2 * tp + fp + fn)
+
+
 COMMON_METRICS = {
     "removal": {
         "mae": lambda x, y: F.l1_loss(x, y).item(),
@@ -118,11 +128,7 @@ COMMON_METRICS = {
         "iou": lambda preds, targets: (
             (preds & targets).float().sum() / (preds | targets).float().sum()
         ).item(),
-        "f1_score": lambda preds, targets: (
-            2
-            * (preds & targets).float().sum()
-            / ((preds | targets).float().sum() + 1e-8)
-        ).item(),
+        "f1_score": f1_score,
     },
 }
 
@@ -173,17 +179,19 @@ def main():
                         }
                     )
                 for metric_name, metric_fn in COMMON_METRICS["detection"].items():
-                    preds = est_map[i : i + 1] > THRESHOLD
-                    targets = expected_mask[i : i + 1] > THRESHOLD
-                    m_val = float(metric_fn(preds, targets))
-                    all_metrics.append(
-                        {
-                            "kind": kind,
-                            "type": "detection",
-                            "metric": metric_name,
-                            "value": m_val,
-                        }
-                    )
+                    for threshold in THRESHOLDS:
+                        preds = est_map[i : i + 1] > threshold
+                        targets = expected_mask[i : i + 1] > threshold
+                        m_val = float(metric_fn(preds, targets))
+                        full_metric_name = f"{metric_name}_th{int(threshold * 100):02d}"
+                        all_metrics.append(
+                            {
+                                "kind": kind,
+                                "type": "detection",
+                                "metric": full_metric_name,
+                                "value": m_val,
+                            }
+                        )
 
     real_flare_paths = sorted(FLARES_TEST.glob("real/*.npy"))
 
@@ -198,18 +206,21 @@ def main():
         with torch.no_grad():
             est_map = model.detector(bgr_img_tensor).cpu()
 
-        preds = est_map > THRESHOLD
-        targets = mask_tensor > THRESHOLD
-        for metric_name, metric_fn in COMMON_METRICS["detection"].items():
-            m_val = float(metric_fn(preds, targets.cpu()))
-            all_metrics.append(
-                {
-                    "kind": "flare7k",
-                    "type": "detection",
-                    "metric": metric_name,
-                    "value": m_val,
-                }
-            )
+        for threshold in THRESHOLDS:
+            preds = est_map > threshold
+            targets = mask_tensor > threshold
+            for metric_name, metric_fn in COMMON_METRICS["detection"].items():
+                m_val = float(metric_fn(preds, targets.cpu()))
+                full_metric_name = f"{metric_name}_th{int(threshold * 100):02d}"
+                all_metrics.append(
+                    {
+                        "kind": "flare7k",
+                        "type": "detection",
+                        "metric": full_metric_name,
+                        "value": m_val,
+                    }
+                )
+
     real_event_paths = sorted(FLARES_TEST.glob("masked/*.npy"))
     logger.info(f"Found {len(real_event_paths)} real event images")
     logger.info("Starting removal on real event images")
@@ -222,17 +233,20 @@ def main():
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
             est_map = model.detector(bgr_img_tensor).cpu()
-        preds = est_map > THRESHOLD
-        targets = mask_tensor > THRESHOLD
-        for metric_name, metric_fn in COMMON_METRICS["detection"].items():
-            all_metrics.append(
-                {
-                    "kind": "with_events",
-                    "type": "detection",
-                    "metric": metric_name,
-                    "value": float(metric_fn(preds.cpu(), targets.cpu())),
-                }
-            )
+
+        for threshold in THRESHOLDS:
+            preds = est_map > threshold
+            targets = mask_tensor > threshold
+            for metric_name, metric_fn in COMMON_METRICS["detection"].items():
+                full_metric_name = f"{metric_name}_th{int(threshold * 100):02d}"
+                all_metrics.append(
+                    {
+                        "kind": "with_events",
+                        "type": "detection",
+                        "metric": full_metric_name,
+                        "value": float(metric_fn(preds.cpu(), targets.cpu())),
+                    }
+                )
 
     logger.info("Saving metrics to output directory")
     with open(args.output_dir / "test_metrics.json", "w") as f:

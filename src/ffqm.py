@@ -37,12 +37,15 @@ def read_video(
 def main():
     parsed_recordings = sorted(TEST_RES_PATH.glob("**/refscores.json"))
     for rec in tqdm.tqdm(parsed_recordings):
+        real_scores = json.loads(rec.read_text())
+        if "vmaf" in real_scores[0]:
+            print(f"Skipping {rec} as it already has VMAF scores.")
+            continue
         reconstructed = rec.parent / "reconstructed.mp4"
         recording = rec.parent.stem
         reference = VID_DIR / f"{recording}.mp4"
         evaluator = fqm.FfmpegQualityMetrics(str(reference), str(reconstructed))
         fqm_scores = evaluator.calculate(["vmaf", "psnr"])
-        real_scores = json.loads(rec.read_text())
         assert len(fqm_scores["psnr"]) == len(real_scores)
         for i, (psnr, vmaf) in enumerate(zip(fqm_scores["psnr"], fqm_scores["vmaf"])):
             real_scores[i]["psnr"] = psnr["psnr_avg"]

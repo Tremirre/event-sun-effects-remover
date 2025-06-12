@@ -4,7 +4,7 @@
 #SBATCH -n1
 #SBATCH -c4
 #SBATCH --gres=gpu:1
-#SBATCH --time=2:00:00
+#SBATCH --time=8:00:00
 #SBATCH --mem 96GB
 
 ID="466"

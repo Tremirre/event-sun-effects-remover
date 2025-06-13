@@ -38,6 +38,7 @@ class TestArgs:
     weights_path: pathlib.Path
     output_dir: pathlib.Path
     batch_size: int = 8
+    combiner_detection: bool = False
 
     def __post_init__(self):
         if isinstance(self.config, pathlib.Path):
@@ -74,6 +75,11 @@ class TestArgs:
             type=int,
             default=8,
             help="Batch size for testing",
+        )
+        parser.add_argument(
+            "--combiner-detection",
+            action="store_true",
+            help="Use combiner the output of the combiner for detection",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -161,8 +167,12 @@ def main():
             expected_frames = y[:, :3]
             expected_mask = y[:, 3]
             with torch.no_grad():
-                est_map, rec_frames = model(x.to(DEVICE))
-                est_map = est_map.cpu()
+                model_input = x.to(DEVICE)
+                est_map, rec_frames = model(model_input)
+                if args.combiner_detection:
+                    est_map = model.combiner(model_input, est_map)[:, 4].cpu()
+                else:
+                    est_map = est_map.cpu()
                 rec_frames = rec_frames.cpu()
 
             for i in range(len(expected_frames)):
@@ -204,7 +214,10 @@ def main():
         bgr_img_tensor = T.ToTensor()(bgr_img).unsqueeze(0).to(DEVICE)
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
-            est_map = model.detector(bgr_img_tensor).cpu()
+            est_map = model.detector(bgr_img_tensor)
+            if args.combiner_detection:
+                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
+            est_map = est_map.cpu()
 
         for threshold in THRESHOLDS:
             preds = est_map > threshold
@@ -232,7 +245,10 @@ def main():
         bgr_img_tensor = T.ToTensor()(bgr_img).unsqueeze(0).to(DEVICE)
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
-            est_map = model.detector(bgr_img_tensor).cpu()
+            est_map = model.detector(bgr_img_tensor)
+            if args.combiner_detection:
+                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
+            est_map = est_map.cpu()
 
         for threshold in THRESHOLDS:
             preds = est_map > threshold

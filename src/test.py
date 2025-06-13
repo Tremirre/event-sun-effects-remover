@@ -214,10 +214,7 @@ def main():
         bgr_img_tensor = T.ToTensor()(bgr_img).unsqueeze(0).to(DEVICE)
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
-            est_map = model.detector(bgr_img_tensor)
-            if args.combiner_detection:
-                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
-            est_map = est_map.cpu()
+            est_map = model.detector(bgr_img_tensor).cpu()
 
         for threshold in THRESHOLDS:
             preds = est_map > threshold
@@ -240,12 +237,12 @@ def main():
 
     for real_path in tqdm.tqdm(real_event_paths):
         real_img = np.load(real_path)
-        bgr_img = real_img[..., :3]
-        mask = real_img[..., 3]
+        bgr_img = real_img[..., :4]
+        mask = real_img[..., 4]
         bgr_img_tensor = T.ToTensor()(bgr_img).unsqueeze(0).to(DEVICE)
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
-            est_map = model.detector(bgr_img_tensor)
+            est_map = model.detector(bgr_img_tensor[:, :3])
             if args.combiner_detection:
                 est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
             est_map = est_map.cpu()

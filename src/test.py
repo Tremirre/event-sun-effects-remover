@@ -145,6 +145,8 @@ def main():
     logger.info(f"Loading model from {args.weights_path}")
     model = args.get_model().eval()
     combiner_detection = isinstance(model.combiner, combiners.EventConsideringCombiner)
+    if combiner_detection:
+        logger.info("Using EventConsideringCombiner for detection")
     model.to(DEVICE)
 
     all_metrics: list = []  # type: ignore

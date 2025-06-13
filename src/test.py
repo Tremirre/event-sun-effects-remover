@@ -17,7 +17,7 @@ import tqdm  # type: ignore
 from src import const, utils
 from src.config import Config
 from src.data import artifacts, dataset, transforms
-from src.model import modules
+from src.model import combiners, modules
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s %(name)s %(levelname)s] %(message)s"
@@ -38,7 +38,6 @@ class TestArgs:
     weights_path: pathlib.Path
     output_dir: pathlib.Path
     batch_size: int = 8
-    combiner_detection: bool = False
 
     def __post_init__(self):
         if isinstance(self.config, pathlib.Path):
@@ -75,11 +74,6 @@ class TestArgs:
             type=int,
             default=8,
             help="Batch size for testing",
-        )
-        parser.add_argument(
-            "--combiner-detection",
-            action="store_true",
-            help="Use combiner the output of the combiner for detection",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -150,6 +144,7 @@ def main():
 
     logger.info(f"Loading model from {args.weights_path}")
     model = args.get_model().eval()
+    combiner_detection = isinstance(model.combiner, combiners.EventConsideringCombiner)
     model.to(DEVICE)
 
     all_metrics: list = []  # type: ignore
@@ -169,7 +164,7 @@ def main():
             with torch.no_grad():
                 model_input = x.to(DEVICE)
                 est_map, rec_frames = model(model_input)
-                if args.combiner_detection:
+                if combiner_detection:
                     est_map = model.combiner(model_input, est_map)[:, 4].cpu()
                 else:
                     est_map = est_map.cpu()
@@ -243,7 +238,7 @@ def main():
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
             est_map = model.detector(bgr_img_tensor[:, :3])
-            if args.combiner_detection:
+            if combiner_detection:
                 est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
             est_map = est_map.cpu()
 

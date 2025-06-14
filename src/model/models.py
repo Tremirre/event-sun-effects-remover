@@ -240,15 +240,15 @@ class UNet(nn.Module):
 
 class NoOp(nn.Module):
     def __init__(
-        self, *args, out_channels: int, out_null: bool = False, **kwargs
+        self, *args, out_channels: int, out_val: float | None = None, **kwargs
     ) -> None:
         super().__init__()
         self.out_channels = out_channels
-        self.out_null = out_null
+        self.out_val = out_val
 
     def forward(self, x):
-        if self.out_null:
-            return torch.zeros_like(x[:, : self.out_channels, :, :])
+        if self.out_val is not None:
+            return torch.full_like(x[:, : self.out_channels, :, :], self.out_val)
         return x[:, : self.out_channels, :, :]
 
 

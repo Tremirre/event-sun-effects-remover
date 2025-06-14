@@ -159,6 +159,8 @@ def main():
             test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4
         )
         num_batches = len(dataloader)
+        pathlib.Path(args.output_dir / kind / "rec").mkdir(parents=True, exist_ok=True)
+        pathlib.Path(args.output_dir / kind / "est").mkdir(parents=True, exist_ok=True)
         for bidx, (x, y) in tqdm.tqdm(
             enumerate(dataloader), total=num_batches, desc=f"Testing {kind} dataset"
         ):
@@ -179,11 +181,11 @@ def main():
                 dataset_idx = bidx * args.batch_size + i
                 sample_name = test_dataset.img_paths[dataset_idx].stem
                 cv2.imwrite(
-                    rec_frames_np[i],
                     args.output_dir / kind / "rec" / f"{sample_name}.png",
+                    rec_frames_np[i],
                 )
                 cv2.imwrite(
-                    est_map_np[i], args.output_dir / kind / "est" / f"{sample_name}.png"
+                    args.output_dir / kind / "est" / f"{sample_name}.png", est_map_np[i]
                 )
                 for metric_name, metric_fn in COMMON_METRICS["removal"].items():
                     m_val = float(
@@ -216,6 +218,9 @@ def main():
 
     logger.info(f"Found {len(real_flare_paths)} real flare images")
     logger.info("Starting detection on real flare images")
+    pathlib.Path(args.output_dir / "real_flare" / "est").mkdir(
+        parents=True, exist_ok=True
+    )
     for real_path in tqdm.tqdm(real_flare_paths):
         real_img = np.load(real_path)
         bgr_img = real_img[..., :3]
@@ -227,7 +232,8 @@ def main():
 
         est_map_np = utils.tensor_to_numpy_img(est_map)
         cv2.imwrite(
-            est_map_np[0], args.output_dir / "real_flare" / "est" / "real_flare.png"
+            args.output_dir / "real_flare" / "est" / real_path.stem + ".png",
+            est_map_np[0],
         )
 
         for threshold in THRESHOLDS:
@@ -248,6 +254,9 @@ def main():
     real_event_paths = sorted(FLARES_TEST.glob("masked/*.npy"))
     logger.info(f"Found {len(real_event_paths)} real event images")
     logger.info("Starting removal on real event images")
+    pathlib.Path(args.output_dir / "real_event" / "rec").mkdir(
+        parents=True, exist_ok=True
+    )
 
     for real_path in tqdm.tqdm(real_event_paths):
         real_img = np.load(real_path)
@@ -262,7 +271,8 @@ def main():
             est_map = est_map.cpu()
             est_map_np = utils.tensor_to_numpy_img(est_map)
             cv2.imwrite(
-                est_map_np[0], args.output_dir / "real_event" / "est" / "real_event.png"
+                args.output_dir / "real_event" / "est" / real_path.stem + ".png",
+                est_map_np[0],
             )
 
         for threshold in THRESHOLDS:

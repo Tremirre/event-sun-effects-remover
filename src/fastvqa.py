@@ -1,6 +1,7 @@
 import argparse
 import json
 import pathlib
+import warnings
 
 import decord
 import numpy as np
@@ -79,6 +80,7 @@ opts = {
 }
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore", category=UserWarning)
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
         "-m",

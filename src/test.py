@@ -7,6 +7,7 @@ import logging
 import pathlib
 import typing
 
+import cv2  # type: ignore
 import numpy as np  # type: ignore
 import pytorch_msssim as msssim  # type: ignore
 import torch  # type: ignore
@@ -158,8 +159,8 @@ def main():
             test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4
         )
         num_batches = len(dataloader)
-        for x, y in tqdm.tqdm(
-            dataloader, total=num_batches, desc=f"Testing {kind} dataset"
+        for bidx, (x, y) in tqdm.tqdm(
+            enumerate(dataloader), total=num_batches, desc=f"Testing {kind} dataset"
         ):
             expected_frames = y[:, :3]
             expected_mask = y[:, 3]
@@ -171,8 +172,19 @@ def main():
                 else:
                     est_map = est_map.cpu()
                 rec_frames = rec_frames.cpu()
+            rec_frames_np = utils.tensor_to_numpy_img(rec_frames)
+            est_map_np = utils.tensor_to_numpy_img(est_map)
 
             for i in range(len(expected_frames)):
+                dataset_idx = bidx * args.batch_size + i
+                sample_name = test_dataset.img_paths[dataset_idx].stem
+                cv2.imwrite(
+                    rec_frames_np[i],
+                    args.output_dir / kind / "rec" / f"{sample_name}.png",
+                )
+                cv2.imwrite(
+                    est_map_np[i], args.output_dir / kind / "est" / f"{sample_name}.png"
+                )
                 for metric_name, metric_fn in COMMON_METRICS["removal"].items():
                     m_val = float(
                         metric_fn(rec_frames[i : i + 1], expected_frames[i : i + 1])
@@ -213,6 +225,11 @@ def main():
         with torch.no_grad():
             est_map = F.sigmoid(model.detector(bgr_img_tensor)).cpu()
 
+        est_map_np = utils.tensor_to_numpy_img(est_map)
+        cv2.imwrite(
+            est_map_np[0], args.output_dir / "real_flare" / "est" / "real_flare.png"
+        )
+
         for threshold in THRESHOLDS:
             preds = est_map > threshold
             targets = mask_tensor > threshold
@@ -243,6 +260,10 @@ def main():
             if combiner_detection:
                 est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
             est_map = est_map.cpu()
+            est_map_np = utils.tensor_to_numpy_img(est_map)
+            cv2.imwrite(
+                est_map_np[0], args.output_dir / "real_event" / "est" / "real_event.png"
+            )
 
         for threshold in THRESHOLDS:
             preds = est_map > threshold

@@ -114,7 +114,7 @@ if __name__ == "__main__":
     evaluator = DiViDeAddEvaluator(**opt["model"]["args"]).to(DEVICE)
     evaluator.load_state_dict(torch.load(args.model, map_location=DEVICE)["state_dict"])
 
-    ref_vids = args.refdir.glob("*.mp4")
+    ref_vids = sorted(args.refdir.glob("*.mp4"))
     print(f"Found {len(list(ref_vids))} reference videos.")
     scores = {
         "original": {},
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         ref_score = evaluate_video(ref_vid, opt, evaluator)
         scores["original"][ref_vid.stem] = ref_score
 
-    test_vids = args.testdir.glob("**/reconstructed.mp4")
+    test_vids = sorted(args.testdir.glob("**/reconstructed.mp4"))
     print(f"Found {len(list(test_vids))} test videos.")
     for test_vid in tqdm.tqdm(test_vids, desc="Processing test videos"):
         rec_score = evaluate_video(test_vid, opt, evaluator)
@@ -133,5 +133,5 @@ if __name__ == "__main__":
             scores[model] = {}
         scores[model][video] = rec_score
 
-    with open(args.testdir / "scores.json", "w") as f:
+    with open(args.testdir / "fastvqascores.json", "w") as f:
         json.dump(scores, f, indent=4)

@@ -237,7 +237,7 @@ def main():
 
         est_map_np = utils.tensor_to_numpy_img(est_map)
         cv2.imwrite(
-            args.output_dir / "pred" / "real_flare" / "est" / real_path.stem + ".png",
+            args.output_dir / "pred" / "real_flare" / "est" / f"{real_path.stem}.png",
             est_map_np[0],
         )
 
@@ -276,8 +276,11 @@ def main():
             est_map = est_map.cpu()
             est_map_np = utils.tensor_to_numpy_img(est_map)
             cv2.imwrite(
-                args.output_dir / "pred" / "real_event" / "est" / real_path.stem
-                + ".png",
+                args.output_dir
+                / "pred"
+                / "real_event"
+                / "est"
+                / f"{real_path.stem}.png",
                 est_map_np[0],
             )
 

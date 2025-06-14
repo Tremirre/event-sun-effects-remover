@@ -174,7 +174,7 @@ def main():
                 model_input = x.to(DEVICE)
                 est_map, rec_frames = model(model_input)
                 if combiner_detection:
-                    est_map = model.combiner(model_input, est_map)[:, 4].cpu()
+                    est_map = model.combiner(model_input, est_map)[:, 4:5].cpu()
                 else:
                     est_map = est_map.cpu()
                 rec_frames = rec_frames.cpu()
@@ -272,7 +272,7 @@ def main():
         with torch.no_grad():
             est_map = F.sigmoid(model.detector(bgr_img_tensor[:, :3]))
             if combiner_detection:
-                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4]
+                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4:5]
             est_map = est_map.cpu()
             est_map_np = utils.tensor_to_numpy_img(est_map)
             cv2.imwrite(

@@ -130,7 +130,7 @@ if __name__ == "__main__":
     for test_vid in tqdm.tqdm(test_vids, desc="Processing test videos"):
         rec_score = evaluate_video(test_vid, opt, evaluator)
         video = test_vid.parent.stem
-        model = test_vid.parent.parent.stem
+        model = test_vid.parent.parent.name
         if model not in scores:
             scores[model] = {}
         scores[model][video] = rec_score

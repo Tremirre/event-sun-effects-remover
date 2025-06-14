@@ -85,10 +85,15 @@ class DetectorInpainterModule(BaseModule):
         # channels: BGR + Event Reconstruction
         # output [BxHxW, Bx3xHxW]
         # channels: BGR
-
-        artifact_map = F.sigmoid(self.detector(x[:, :3, :, :]))
+        if self.detector.__class__.__name__.lower() == "noop":
+            artifact_map = self.detector(x[:, :3, :, :])
+        else:
+            artifact_map = F.sigmoid(self.detector(x[:, :3, :, :]))
         inpaint_input = self.combiner(x, artifact_map)
-        inpaint_out = F.sigmoid(self.inpainter(inpaint_input))
+        if self.inpainter.__class__.__name__.lower() == "noop":
+            inpaint_out = self.inpainter(inpaint_input)
+        else:
+            inpaint_out = F.sigmoid(self.inpainter(inpaint_input))
         return artifact_map, inpaint_out
 
     def _shared_step(

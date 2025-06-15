@@ -259,7 +259,7 @@ def main():
     real_event_paths = sorted(FLARES_TEST.glob("masked/*.npy"))
     logger.info(f"Found {len(real_event_paths)} real event images")
     logger.info("Starting removal on real event images")
-    pathlib.Path(args.output_dir / "pred" / "real_event" / "rec").mkdir(
+    pathlib.Path(args.output_dir / "pred" / "real_event" / "est").mkdir(
         parents=True, exist_ok=True
     )
 
@@ -274,15 +274,11 @@ def main():
             if combiner_detection:
                 est_map = model.combiner(bgr_img_tensor, est_map)[:, 4:5]
             est_map = est_map.cpu()
-            est_map_np = utils.tensor_to_numpy_img(est_map)
-            cv2.imwrite(
-                args.output_dir
-                / "pred"
-                / "real_event"
-                / "est"
-                / f"{real_path.stem}.png",
-                est_map_np[0],
-            )
+        est_map_np = utils.tensor_to_numpy_img(est_map)
+        cv2.imwrite(
+            args.output_dir / "pred" / "real_event" / "est" / f"{real_path.stem}.png",
+            est_map_np[0],
+        )
 
         for threshold in THRESHOLDS:
             preds = est_map > threshold

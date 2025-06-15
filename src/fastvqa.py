@@ -11,6 +11,7 @@ import yaml
 
 from fastvqa.datasets import FragmentSampleFrames, SampleFrames, get_spatial_fragments
 from fastvqa.models import DiViDeAddEvaluator
+from src.utils import set_global_seed
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -80,6 +81,7 @@ opts = {
 }
 
 if __name__ == "__main__":
+    set_global_seed(42)
     warnings.filterwarnings("ignore", category=UserWarning)
     argparser = argparse.ArgumentParser()
     argparser.add_argument(

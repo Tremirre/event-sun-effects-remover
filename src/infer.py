@@ -15,6 +15,7 @@ import tqdm
 from src import const
 from src.config import Config
 from src.data import dataset, transforms
+from src.model import combiners
 from src.model.modules import DetectorInpainterModule
 from src.utils import tensor_to_numpy_img
 
@@ -93,6 +94,7 @@ if __name__ == "__main__":
     infer_args = InferArgs.from_args()
     model = infer_args.get_model().to(DEVICE)
 
+    combiner_detection = isinstance(model.combiner, combiners.EventConsideringCombiner)
     img_paths = sorted(infer_args.input_dir.glob("**/*.npy"))
     logger.info(f"Found {len(img_paths)} images in {infer_args.input_dir}")
     infer_dataset = dataset.BGREADataset(
@@ -119,6 +121,8 @@ if __name__ == "__main__":
     all_post_estimate_maps: list[np.ndarray] = []
     for x, y in iter_batches:
         est_map, rec_frames = model(x.to(DEVICE))
+        if combiner_detection:
+            est_map = model.combiner(x.to(DEVICE), est_map)[:, 3:4]
         post_est_map = F.sigmoid(model.detector(rec_frames.detach()))
         all_estimate_maps.extend(tensor_to_numpy_img(est_map.cpu()))
         all_rec_frames.extend(tensor_to_numpy_img(rec_frames.cpu()))

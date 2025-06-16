@@ -49,6 +49,12 @@ class DetectorInpainterModule(BaseModule):
         if apply_non_mask_penalty:
             logger.info("Non-mask penalty will be applied")
 
+    @property
+    def is_noop(self):
+        detector_noop = self.detector.__class__.__name__.lower() == "noop"
+        inpainter_noop = self.inpainter.__class__.__name__.lower() == "noop"
+        return detector_noop and inpainter_noop
+
     def detector_loss(
         self, artifact_map: torch.Tensor, target: torch.Tensor
     ) -> torch.Tensor:
@@ -85,12 +91,12 @@ class DetectorInpainterModule(BaseModule):
         # channels: BGR + Event Reconstruction
         # output [BxHxW, Bx3xHxW]
         # channels: BGR
-        if self.detector.__class__.__name__.lower() == "noop":
+        if self.is_noop:
             artifact_map = self.detector(x[:, :3, :, :])
         else:
             artifact_map = F.sigmoid(self.detector(x[:, :3, :, :]))
         inpaint_input = self.combiner(x, artifact_map)
-        if self.inpainter.__class__.__name__.lower() == "noop":
+        if self.is_noop:
             inpaint_out = self.inpainter(inpaint_input)
         else:
             inpaint_out = F.sigmoid(self.inpainter(inpaint_input))

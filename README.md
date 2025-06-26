@@ -17,11 +17,11 @@ by Bartosz Stachowiak, 2025
 
 ## 📁 Project Structure
 
-├── .vscode/ # VSCode project settings
-├── data-prep/ # Scripts for preparing datasets
-├── src/ # Core model, training, and evaluation code
-├── *.ipynb # Jupyter notebooks for experiments and analysis
-├── *.sh # Shell scripts for training and testing
-├── requirements.txt # Core dependencies
-├── Dockerfile # Docker configuration
-├── setup.sh # Setup utility for environment and configs
+- `data-prep/` # Scripts for preparing datasets
+- `src/` # Core model, training, and evaluation code
+- `*.ipynb` # Jupyter notebooks for experiments and analysis
+- `*.sh` # Shell scripts for training and testing
+- `requirements.txt` # Core dependencies for both data preparation and training
+- `requirements.prod.txt` # Core dependencies for model training and inference
+- `Dockerfile` # Docker configuration
+- `setup.sh` # Setup utility for environment and configs

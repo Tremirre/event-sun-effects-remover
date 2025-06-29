@@ -122,7 +122,7 @@ if __name__ == "__main__":
     for x, y in iter_batches:
         est_map, rec_frames = model(x.to(DEVICE))
         if combiner_detection:
-            est_map = model.combiner(x.to(DEVICE), est_map)[:, 3:4]
+            est_map = model.combiner(x.to(DEVICE), est_map)[:, 4:5]
         post_est_map = F.sigmoid(model.detector(rec_frames.detach()))
         all_estimate_maps.extend(tensor_to_numpy_img(est_map.cpu()))
         all_rec_frames.extend(tensor_to_numpy_img(rec_frames.cpu()))

@@ -273,7 +273,7 @@ def main():
             est_map = model.detector(bgr_img_tensor[:, :3])
             if combiner_detection:
                 est_map = model.combiner(bgr_img_tensor, est_map)[:, 4:5]
-            else:
+            if not model.is_noop:
                 est_map = F.sigmoid(est_map)
             est_map = est_map.cpu()
         est_map_np = utils.tensor_to_numpy_img(est_map)

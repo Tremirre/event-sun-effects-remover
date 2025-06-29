@@ -271,10 +271,10 @@ def main():
         mask_tensor = T.ToTensor()(mask).unsqueeze(0)
         with torch.no_grad():
             est_map = model.detector(bgr_img_tensor[:, :3])
-            if combiner_detection:
-                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4:5]
             if not model.is_noop:
                 est_map = F.sigmoid(est_map)
+            if combiner_detection:
+                est_map = model.combiner(bgr_img_tensor, est_map)[:, 4:5]
             est_map = est_map.cpu()
         est_map_np = utils.tensor_to_numpy_img(est_map)
         cv2.imwrite(

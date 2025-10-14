@@ -12,6 +12,7 @@ import pytorch_msssim as msssim  # type: ignore
 import torch  # type: ignore
 import torch.nn.functional as F  # type: ignore
 import torchvision.transforms as T
+import tqdm  # type: ignore
 
 from src import const, utils
 
@@ -22,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 TEST_ART_SPLIT = json.loads((const.SPLIT_DIR / "test_artifact_source.json").read_text())
+FILE_TO_TYPE = {}
+for art_type, files in TEST_ART_SPLIT.items():
+    for f in files:
+        FILE_TO_TYPE[f] = art_type
 FLARES_TEST = const.DATA_DIR / "detect" / "test"
 THRESHOLDS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.5]  # Thresholds for artifact detection
 
@@ -30,12 +35,13 @@ THRESHOLDS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.5]  # Thresholds for artifact detect
 class TestArgs:
     test_path: pathlib.Path
     ref_path: pathlib.Path
-    output_dir: pathlib.Path
+    out_file: pathlib.Path
 
     def __post_init__(self):
         assert self.test_path.exists(), "Test path does not exist"
         assert self.ref_path.exists(), "Reference path does not exist"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.out_file.parent.mkdir(parents=True, exist_ok=True)
+        assert not self.out_file.exists(), "Output file already exists"
 
     @classmethod
     def from_args(cls) -> TestArgs:
@@ -49,7 +55,7 @@ class TestArgs:
             "ref_path", type=pathlib.Path, help="Path to the reference set"
         )
         _ = parser.add_argument(
-            "output_dir", type=pathlib.Path, help="Path to the output directory"
+            "out_file", type=pathlib.Path, help="Path to the output JSON file"
         )
         return cls(**vars(parser.parse_args()))
 
@@ -84,16 +90,20 @@ COMMON_METRICS = {
 
 def main():
     utils.set_global_seed(42)
+    logger.info("Starting evaluation...")
     args = TestArgs.from_args()
     ref_paths = sorted(args.ref_path.glob("**/*.npy"))
     test_paths = sorted(args.test_path.glob("**/*.png"))
+    logger.info(f"Found {len(ref_paths)} reference images")
+    logger.info(f"Found {len(test_paths)} test images")
     assert len(test_paths) == len(ref_paths), "Test and reference paths do not match"
     test_imgs: dict[str, np.ndarray] = {p.stem: cv2.imread(str(p)) for p in test_paths}
     ref_imgs: dict[str, np.ndarray] = {p.stem: np.load(p) for p in ref_paths}
-
-    for img_name, ref_img in ref_imgs.items():
+    entries = []
+    for img_name, ref_img in tqdm.tqdm(ref_imgs.items()):
         ref_img = ref_img[..., :3]
-        t_h, t_w = ref_img.shape[:2]
+        test_img = test_imgs[img_name]
+        t_h, t_w = test_img.shape[:2]
         r_h, r_w = ref_img.shape[:2]
 
         if r_h >= t_h:
@@ -128,12 +138,32 @@ def main():
         )
 
         ref_img_conv = T.ToTensor()(ref_resized)
-        test_img = test_imgs[img_name]
         test_img_conv = T.ToTensor()(test_img[..., :3])
 
+        assert ref_img_conv.shape == test_img_conv.shape, (
+            f"Shape mismatch for {img_name}: {ref_img_conv.shape} vs {test_img_conv.shape}"
+        )
+
+        # unsqueeze to add batch dimension
+        ref_img_conv = ref_img_conv.unsqueeze(0)
+        test_img_conv = test_img_conv.unsqueeze(0)
         for metric_name, metric_fn in COMMON_METRICS["removal"].items():
             m_val = float(metric_fn(test_img_conv, ref_img_conv))
-            print(f"{metric_name}: {m_val}")
+            entries.append(
+                {
+                    "image": img_name,
+                    "type": FILE_TO_TYPE.get(f"{img_name}.npy", "unknown"),
+                    "metric": metric_name,
+                    "value": float(m_val),
+                    "dataset": args.out_file.stem,
+                }
+            )
+
+    logger.info("Exporting results...")
+    results_path = args.out_file
+    results_path.write_text(json.dumps(entries, indent=4))
+    logger.info(f"Results exported to {results_path}")
+    logger.info("Evaluation complete.")
 
 
 if __name__ == "__main__":

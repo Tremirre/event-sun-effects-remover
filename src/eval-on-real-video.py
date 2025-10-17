@@ -153,8 +153,6 @@ def main():
             scores = eval_frames(ref_frame, test_frame)
             scores["video"] = video_path.name
             vid_scores.append(scores)
-            if len(vid_scores) > 10:
-                break
 
         avg_scores = {
             k: float(np.mean([s[k] for s in vid_scores]))

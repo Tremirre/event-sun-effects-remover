@@ -30,6 +30,7 @@ class EvalArgs:
         assert self.reference_videos.exists(), "Reference video does not exist"
         assert self.test_res_dir.exists(), "Test directory does not exist"
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        assert not self.output_path.exists(), "Output file already exists"
         if self.output_path.suffix != ".json":
             self.output_path = self.output_path.with_suffix(".json")
 

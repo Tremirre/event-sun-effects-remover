@@ -136,8 +136,8 @@ def main():
         logger.info(
             f"Reference video shape: {ref_video.shape}, Test video shape: {test_video.shape}"
         )
-        assert ref_video.shape == test_video.shape, (
-            "Reference and test videos must have the same shape",
+        assert ref_video.shape[0] == test_video.shape[0], (
+            "Reference and test videos must have the same length",
             ref_video.shape,
             test_video.shape,
         )
@@ -149,8 +149,41 @@ def main():
             iter_frames, total=len(ref_video), desc="Calculating scores"
         )
         vid_scores: list[dict[str, float]] = []
-        for ref_frame, test_frame in pbar:
-            scores = eval_frames(ref_frame, test_frame)
+        for ref_img, test_img in pbar:
+            t_h, t_w = test_img.shape[:2]
+            r_h, r_w = ref_img.shape[:2]
+
+            if r_h >= t_h:
+                y0 = (r_h - t_h) // 2
+                y1 = y0 + t_h
+            else:
+                y0, y1 = 0, r_h
+
+            if r_w >= t_w:
+                x0 = (r_w - t_w) // 2
+                x1 = x0 + t_w
+            else:
+                x0, x1 = 0, r_w
+
+            cropped = ref_img[y0:y1, x0:x1]
+
+            # Pad if smaller than target
+            pad_h = max(0, t_h - cropped.shape[0])
+            pad_w = max(0, t_w - cropped.shape[1])
+            top = pad_h // 2
+            bottom = pad_h - top
+            left = pad_w // 2
+            right = pad_w - left
+
+            ref_resized = np.pad(
+                cropped,
+                ((top, bottom), (left, right), (0, 0))
+                if ref_img.ndim == 3
+                else ((top, bottom), (left, right)),
+                mode="constant",
+                constant_values=0,
+            )
+            scores = eval_frames(ref_resized, test_img)
             scores["video"] = video_path.name
             vid_scores.append(scores)
 

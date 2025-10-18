@@ -142,7 +142,6 @@ def main():
             ref_video.shape,
             test_video.shape,
         )
-        logger.info("Evaluating VMAF")
 
         logger.info("Calculating frame-wise scores")
         iter_frames = zip(ref_video, test_video, strict=True)

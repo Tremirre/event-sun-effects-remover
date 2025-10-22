@@ -6,6 +6,7 @@ import json
 import logging
 import pathlib
 import warnings
+from enum import Enum
 
 import brisque
 import cv2
@@ -40,11 +41,17 @@ def sigmoid_rescale(score):
 
 @dataclasses.dataclass
 class EvalArgs:
+    class Part(Enum):
+        BASE = "base"
+        EXTRA = "extra"
+        BOTH = "both"
+
     vid_dir: pathlib.Path
     comp_results_dir: pathlib.Path
     split_dir: pathlib.Path
     vqa_model_path: pathlib.Path
     vqa_opt_path: pathlib.Path
+    part: Part
 
     def __post_init__(self):
         assert self.vid_dir.exists(), "Video directory does not exist"
@@ -86,6 +93,13 @@ class EvalArgs:
             type=pathlib.Path,
             required=True,
             help="Path to the VQA opt file",
+        )
+        parser.add_argument(
+            "-p",
+            "--part",
+            type=str,
+            required=True,
+            help="Part to evaluate [base/extra/both]",
         )
         return cls(**vars(parser.parse_args()))
 
@@ -202,7 +216,8 @@ def compare_synthetic_reconstruction(
     frame_to_type: dict[str, str],
 ) -> list[dict[str, float | str]]:
     img_paths = sorted(
-        (comp_dir / "preds" / "synth" / "img" / competitor).glob("*.png")
+        (comp_dir / "preds" / "synth" / "img" / competitor).glob("*.png"),
+        key=lambda x: x.stem,
     )
     tested_frames = np.stack([cv2.imread(str(p)) for p in img_paths])
 
@@ -248,7 +263,7 @@ def compare_synthetic_detection(
     if not competitor_art_path.exists():
         logger.info(f"No artifacts for competitor {competitor}")
         return []
-    img_paths = sorted(competitor_art_path.glob("*.png"))
+    img_paths = sorted(competitor_art_path.glob("*.png"), key=lambda x: x.stem)
     tested_frames = np.stack([cv2.imread(str(p)) for p in img_paths])
     assert ref_frames.shape[0] == tested_frames.shape[0], (
         f"Number of reference frames ({ref_frames.shape[0]}) does not match number of tested frames ({tested_frames.shape[0]})"
@@ -324,7 +339,8 @@ def compare_real_base_metrics(
         img_paths = sorted(
             (comp_dir / "preds" / "real" / "img" / competitor).glob(
                 f"{video_name}*.png"
-            )
+            ),
+            key=lambda x: x.stem,
         )
         tested_imgs = np.stack([cv2.imread(str(p)) for p in img_paths])
         assert ref_imgs.shape[0] == tested_imgs.shape[0], (
@@ -367,7 +383,8 @@ def compare_real_ffqm_metrics(
         img_paths = sorted(
             (comp_dir / "preds" / "real" / "img" / competitor).glob(
                 f"{video_name}*.png"
-            )
+            ),
+            key=lambda x: x.stem,
         )
         tested_video_path = (
             comp_dir / "preds" / "vids" / competitor / f"{video_name}.mp4"
@@ -504,7 +521,7 @@ def main():
     args = EvalArgs.from_args()
     args.print()
 
-    recording_paths = sorted((args.vid_dir).glob("*.mp4"))
+    recording_paths = sorted((args.vid_dir).glob("*.mp4"), key=lambda x: x.stem)
     logger.info(f"Found {len(recording_paths)} recordings")
     recordings = {p.stem: read_video(p) for p in recording_paths}
     with open(args.vqa_opt_path, "r") as f:
@@ -527,7 +544,9 @@ def main():
     )
     logger.info(f"Found {len(competitors)} competitors")
 
-    test_frames_paths = sorted((args.split_dir / "test").glob("**/*.npy"))
+    test_frames_paths = sorted(
+        (args.split_dir / "test").glob("**/*.npy"), key=lambda x: x.stem
+    )
     logger.info(f"Found {len(test_frames_paths)} test frames")
 
     test_frames = np.stack([np.load(p) for p in test_frames_paths])
@@ -542,40 +561,47 @@ def main():
 
     for comp in competitors:
         scores_dir = args.comp_results_dir / "scores" / f"{comp}.json"
-        if scores_dir.exists():
+        if not scores_dir.exists() and args.part != EvalArgs.Part.EXTRA:
+            results = []
+            logger.info(f"Running evaluation for {comp}")
+            sr = compare_synthetic_reconstruction(
+                test_frames,
+                args.comp_results_dir,
+                comp,
+                frame_to_type,
+            )
+            results.extend(sr)
+            sd = compare_synthetic_detection(
+                test_frames,
+                args.comp_results_dir,
+                comp,
+                frame_to_type,
+            )
+            results.extend(sd)
+
+            rf = compare_real_ffqm_metrics(recording_paths, args.comp_results_dir, comp)
+            results.extend(rf)
+
+            fb = compare_fastvqa_metrics(
+                recording_scores, args.comp_results_dir, comp, evaluator, opt
+            )
+            results.extend(fb)
+
+            with open(scores_dir, "w") as f:
+                json.dump(results, f, indent=4)
+
+            logger.info(f"Saved results to {scores_dir}")
+        else:
             logger.info(f"Skipping {comp} as scores already exist")
-            continue
-        results = []
-        logger.info(f"Running evaluation for {comp}")
-        sr = compare_synthetic_reconstruction(
-            test_frames,
-            args.comp_results_dir,
-            comp,
-            frame_to_type,
-        )
-        results.extend(sr)
-        sd = compare_synthetic_detection(
-            test_frames,
-            args.comp_results_dir,
-            comp,
-            frame_to_type,
-        )
-        results.extend(sd)
-        rb = compare_real_base_metrics(recordings, args.comp_results_dir, comp)
-        results.extend(rb)
 
-        rf = compare_real_ffqm_metrics(recording_paths, args.comp_results_dir, comp)
-        results.extend(rf)
+        if args.part != EvalArgs.Part.BASE:
+            logger.info("Extra metrics")
 
-        fb = compare_fastvqa_metrics(
-            recording_scores, args.comp_results_dir, comp, evaluator, opt
-        )
-        results.extend(fb)
-
-        with open(scores_dir, "w") as f:
-            json.dump(results, f, indent=4)
-
-        logger.info(f"Saved results to {scores_dir}")
+            extra_metrics_out = args.comp_results_dir / "scores" / f"{comp}_extra.json"
+            rb = compare_real_base_metrics(recordings, args.comp_results_dir, comp)
+            with open(extra_metrics_out, "w") as f:
+                json.dump(rb, f, indent=4)
+            logger.info(f"Saved extra metrics to {extra_metrics_out}")
 
 
 if __name__ == "__main__":

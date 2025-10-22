@@ -59,7 +59,7 @@ class EvalArgs:
         assert self.split_dir.exists(), "Split directory does not exist"
         assert self.vqa_model_path.exists(), "VQA model does not exist"
         assert self.vqa_opt_path.exists(), "VQA opt file does not exist"
-        self.part = self.Part(self.vid_dir.name)
+        self.part = self.Part(self.part)
 
     @classmethod
     def from_args(cls) -> EvalArgs:

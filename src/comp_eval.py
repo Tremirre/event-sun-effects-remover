@@ -6,7 +6,7 @@ import json
 import logging
 import pathlib
 import warnings
-from enum import Enum
+from enum import StrEnum
 
 import brisque
 import cv2
@@ -41,7 +41,7 @@ def sigmoid_rescale(score):
 
 @dataclasses.dataclass
 class EvalArgs:
-    class Part(Enum):
+    class Part(StrEnum):
         BASE = "base"
         EXTRA = "extra"
         BOTH = "both"
@@ -59,6 +59,7 @@ class EvalArgs:
         assert self.split_dir.exists(), "Split directory does not exist"
         assert self.vqa_model_path.exists(), "VQA model does not exist"
         assert self.vqa_opt_path.exists(), "VQA opt file does not exist"
+        self.part = self.Part(self.vid_dir.name)
 
     @classmethod
     def from_args(cls) -> EvalArgs:
@@ -109,6 +110,7 @@ class EvalArgs:
         print(f"Test data directory: {self.split_dir}")
         print(f"VQA model path: {self.vqa_model_path}")
         print(f"VQA opt file: {self.vqa_opt_path}")
+        print(f"Part: {self.part}")
 
 
 def read_video(

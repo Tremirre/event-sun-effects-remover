@@ -5,6 +5,8 @@ import dataclasses
 import json
 import logging
 import pathlib
+import subprocess
+import tempfile
 import warnings
 from enum import StrEnum
 
@@ -211,6 +213,47 @@ def resize_ref_to_shape(ref_img: np.ndarray, tested_img: np.ndarray) -> np.ndarr
     return ref_resized
 
 
+def get_video_dimensions(path: pathlib.Path) -> tuple[int, int]:
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=p=0",
+        str(path),
+    ]
+    output = subprocess.check_output(cmd, text=True)
+    width, height = output.strip().split(",")
+    return int(width), int(height)
+
+
+def normalize_video(
+    input_path: pathlib.Path,
+    output_path: pathlib.Path,
+    target_width: int,
+    target_height: int,
+):
+    vf = (
+        f"scale='if(gt(iw,{target_width}),{target_width},iw)':'if(gt(ih,{target_height}),{target_height},ih)',"
+        f"pad={target_width}:{target_height}:({target_width}-iw)/2:({target_height}-ih)/2:black,"
+        f"crop='min(iw,{target_width})':'min(ih,{target_height})'"
+    )
+    cmd = [
+        "ffmpeg",
+        "-i",
+        str(input_path.resolve()),
+        "-vf",
+        vf,
+        "-y",
+        str(output_path.resolve()),
+    ]
+    subprocess.run(cmd, check=True)
+
+
 def compare_synthetic_reconstruction(
     ref_frames: np.ndarray,
     comp_dir: pathlib.Path,
@@ -282,8 +325,8 @@ def compare_synthetic_detection(
         total=len(ref_frames),
         desc="Comparing synthetic detection",
     ):
-        ref = np.mean(ref, axis=-1)
-        tested = np.mean(tested, axis=-1)
+        ref = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
+        tested = cv2.cvtColor(tested, cv2.COLOR_BGR2GRAY)
         ref_torch = T.ToTensor()(ref).unsqueeze(0)
         tested_torch = T.ToTensor()(tested).unsqueeze(0)
         for k, v in COMMON_METRICS["detection"].items():
@@ -374,6 +417,9 @@ def compare_real_base_metrics(
     return res
 
 
+REF_WIDTH, REF_HEIGHT = 640, 480
+
+
 def compare_real_ffqm_metrics(
     recording_paths: list[pathlib.Path],
     comp_dir: pathlib.Path,
@@ -391,6 +437,13 @@ def compare_real_ffqm_metrics(
         tested_video_path = (
             comp_dir / "preds" / "vids" / competitor / f"{video_name}.mp4"
         )
+        test_width, test_height = get_video_dimensions(tested_video_path)
+        if test_width != REF_WIDTH or test_height != REF_HEIGHT:
+            tempdir = tempfile.TemporaryDirectory()
+            new_ref_video_path = pathlib.Path(tempdir.name) / ref_video_path.name
+            normalize_video(ref_video_path, new_ref_video_path, test_width, test_height)
+            ref_video_path = new_ref_video_path
+
         evaluator = fqm.FfmpegQualityMetrics(
             str(ref_video_path), str(tested_video_path)
         )

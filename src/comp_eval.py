@@ -8,7 +8,7 @@ import pathlib
 import subprocess
 import tempfile
 import warnings
-from enum import StrEnum
+from enum import Enum
 
 import brisque
 import cv2
@@ -43,7 +43,7 @@ def sigmoid_rescale(score):
 
 @dataclasses.dataclass
 class EvalArgs:
-    class Part(StrEnum):
+    class Part(str, Enum):
         BASE = "base"
         EXTRA = "extra"
         BOTH = "both"

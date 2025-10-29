@@ -650,7 +650,7 @@ def main():
             logger.info(f"Skipping {comp} as scores already exist")
 
         extra_scores_file = args.comp_results_dir / "scores" / f"{comp}_extra.json"
-        if args.part != EvalArgs.Part.BASEi and not extra_scores_file.exists():
+        if args.part != EvalArgs.Part.BASE and not extra_scores_file.exists():
             logger.info("Extra metrics")
             rb = compare_real_base_metrics(recordings, args.comp_results_dir, comp)
             with open(extra_scores_file, "w") as f:

@@ -238,9 +238,9 @@ def normalize_video(
     target_height: int,
 ):
     vf = (
-        f"scale='if(gt(iw,{target_width}),{target_width},iw)':'if(gt(ih,{target_height}),{target_height},ih)',"
-        f"pad={target_width}:{target_height}:({target_width}-iw)/2:({target_height}-ih)/2:black,"
-        f"crop='min(iw,{target_width})':'min(ih,{target_height})'"
+        f"pad='if(gt({target_width},iw),{target_width},iw)':'if(gt({target_height},ih),{target_height},ih)':"
+        f"({target_width}-iw)/2:({target_height}-ih)/2:black,"
+        f"crop={target_width}:{target_height}"
     )
     cmd = [
         "ffmpeg",
@@ -615,8 +615,8 @@ def main():
             frame_to_type[frame] = frame_type
 
     for comp in competitors:
-        scores_dir = args.comp_results_dir / "scores" / f"{comp}.json"
-        if not scores_dir.exists() and args.part != EvalArgs.Part.EXTRA:
+        scores_file = args.comp_results_dir / "scores" / f"{comp}.json"
+        if not scores_file.exists() and args.part != EvalArgs.Part.EXTRA:
             results = []
             logger.info(f"Running evaluation for {comp}")
             sr = compare_synthetic_reconstruction(
@@ -642,21 +642,22 @@ def main():
             )
             results.extend(fb)
 
-            with open(scores_dir, "w") as f:
+            with open(scores_file, "w") as f:
                 json.dump(results, f, indent=4)
 
-            logger.info(f"Saved results to {scores_dir}")
+            logger.info(f"Saved results to {scores_file}")
         else:
             logger.info(f"Skipping {comp} as scores already exist")
 
+        extra_scores_file = args.comp_results_dir / "scores" / f"{comp}_extra.json"
         if args.part != EvalArgs.Part.BASE:
             logger.info("Extra metrics")
-
-            extra_metrics_out = args.comp_results_dir / "scores" / f"{comp}_extra.json"
             rb = compare_real_base_metrics(recordings, args.comp_results_dir, comp)
-            with open(extra_metrics_out, "w") as f:
+            with open(extra_scores_file, "w") as f:
                 json.dump(rb, f, indent=4)
-            logger.info(f"Saved extra metrics to {extra_metrics_out}")
+            logger.info(f"Saved extra metrics to {extra_scores_file}")
+        else:
+            logger.info(f"Skipping extra metrics for {comp}")
 
 
 if __name__ == "__main__":

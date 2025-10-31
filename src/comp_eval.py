@@ -583,16 +583,17 @@ def main():
         opt = yaml.safe_load(f)
 
     recording_scores = {}
-    evaluator = DiViDeAddEvaluator(**opt["model"]["args"]).to(DEVICE)
-    evaluator.load_state_dict(
-        torch.load(args.vqa_model_path, map_location=DEVICE)["state_dict"]
-    )
-    for recording_path in tqdm.tqdm(
-        recording_paths, desc="Evaluating original recordings with FAST-VQA"
-    ):
-        video_name = recording_path.stem
-        evaluated_score = evaluate_video_fastvqa(recording_path, opt, evaluator)
-        recording_scores[video_name] = evaluated_score
+    if args.part != EvalArgs.Part.EXTRA:
+        evaluator = DiViDeAddEvaluator(**opt["model"]["args"]).to(DEVICE)
+        evaluator.load_state_dict(
+            torch.load(args.vqa_model_path, map_location=DEVICE)["state_dict"]
+        )
+        for recording_path in tqdm.tqdm(
+            recording_paths, desc="Evaluating original recordings with FAST-VQA"
+        ):
+            video_name = recording_path.stem
+            evaluated_score = evaluate_video_fastvqa(recording_path, opt, evaluator)
+            recording_scores[video_name] = evaluated_score
 
     competitors = sorted(
         [p.stem for p in (args.comp_results_dir / "preds" / "vids").glob("*")]

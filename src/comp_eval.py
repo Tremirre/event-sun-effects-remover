@@ -27,6 +27,8 @@ from fastvqa.models import DiViDeAddEvaluator
 from src.utils import set_global_seed
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+REF_WIDTH, REF_HEIGHT = 640, 480
+
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s %(name)s %(levelname)s] %(message)s"
@@ -173,8 +175,7 @@ COMMON_METRICS = {
 }
 
 
-def resize_ref_to_shape(ref_img: np.ndarray, tested_img: np.ndarray) -> np.ndarray:
-    t_h, t_w = tested_img.shape[:2]
+def resize_to_shape(ref_img: np.ndarray, t_h: int, t_w: int) -> np.ndarray:
     r_h, r_w = ref_img.shape[:2]
 
     if r_h == t_h and r_w == t_w:
@@ -269,10 +270,18 @@ def compare_synthetic_reconstruction(
     assert ref_frames.shape[0] == tested_frames.shape[0], (
         f"Number of reference frames ({ref_frames.shape[0]}) does not match number of tested frames ({tested_frames.shape[0]})"
     )
+    target_width = min(tested_frames.shape[2], REF_WIDTH)
+    target_height = min(tested_frames.shape[1], REF_HEIGHT)
     ref_frames = np.stack(
         [
-            resize_ref_to_shape(ref, tested)
+            resize_to_shape(ref, target_height, target_width)
             for ref, tested in zip(ref_frames[..., :3], tested_frames)
+        ]
+    )
+    tested_frames = np.stack(
+        [
+            resize_to_shape(tested, target_height, target_width)
+            for tested in tested_frames
         ]
     )
     res = []
@@ -313,10 +322,18 @@ def compare_synthetic_detection(
     assert ref_frames.shape[0] == tested_frames.shape[0], (
         f"Number of reference frames ({ref_frames.shape[0]}) does not match number of tested frames ({tested_frames.shape[0]})"
     )
+    target_width = min(tested_frames.shape[2], REF_WIDTH)
+    target_height = min(tested_frames.shape[1], REF_HEIGHT)
     ref_frames = np.stack(
         [
-            resize_ref_to_shape(ref, tested)
-            for ref, tested in zip(ref_frames[..., -3:], tested_frames)
+            resize_to_shape(ref, target_height, target_width)
+            for ref, tested in zip(ref_frames[..., :3], tested_frames)
+        ]
+    )
+    tested_frames = np.stack(
+        [
+            resize_to_shape(tested, target_height, target_width)
+            for tested in tested_frames
         ]
     )
     res = []
@@ -391,10 +408,18 @@ def compare_real_base_metrics(
         assert ref_imgs.shape[0] == tested_imgs.shape[0], (
             f"Number of reference frames ({ref_imgs.shape[0]}) does not match number of tested frames ({tested_imgs.shape[0]})"
         )
+        target_width = min(tested_imgs.shape[2], REF_WIDTH)
+        target_height = min(tested_imgs.shape[1], REF_HEIGHT)
         ref_imgs = np.stack(
             [
-                resize_ref_to_shape(ref, tested)
+                resize_to_shape(ref, target_height, target_width)
                 for ref, tested in zip(ref_imgs[..., :3], tested_imgs)
+            ]
+        )
+        tested_imgs = np.stack(
+            [
+                resize_to_shape(tested, target_height, target_width)
+                for tested in tested_imgs
             ]
         )
         for i, (ref, tested) in tqdm.tqdm(
@@ -417,9 +442,6 @@ def compare_real_base_metrics(
     return res
 
 
-REF_WIDTH, REF_HEIGHT = 640, 480
-
-
 def compare_real_ffqm_metrics(
     recording_paths: list[pathlib.Path],
     comp_dir: pathlib.Path,
@@ -438,12 +460,20 @@ def compare_real_ffqm_metrics(
             comp_dir / "preds" / "vids" / competitor / f"{video_name}.mp4"
         )
         test_width, test_height = get_video_dimensions(tested_video_path)
-        if test_width != REF_WIDTH or test_height != REF_HEIGHT:
+        target_width = min(test_width, REF_WIDTH)
+        target_height = min(test_height, REF_HEIGHT)
+        if target_width != REF_WIDTH or target_height != REF_HEIGHT:
             tempdir = tempfile.TemporaryDirectory()
             new_ref_video_path = pathlib.Path(tempdir.name) / ref_video_path.name
-            normalize_video(ref_video_path, new_ref_video_path, test_width, test_height)
+            normalize_video(
+                ref_video_path, new_ref_video_path, target_width, target_height
+            )
             ref_video_path = new_ref_video_path
-
+            new_tested_video_path = pathlib.Path(tempdir.name) / tested_video_path.name
+            normalize_video(
+                tested_video_path, new_tested_video_path, target_width, target_height
+            )
+            tested_video_path = new_tested_video_path
         evaluator = fqm.FfmpegQualityMetrics(
             str(ref_video_path), str(tested_video_path)
         )
@@ -534,6 +564,7 @@ def evaluate_video_fastvqa(
 def compare_fastvqa_metrics(
     recording_scores: dict[str, float],
     comp_dir: pathlib.Path,
+    vid_dir: pathlib.Path,
     competitor: str,
     evaluator: DiViDeAddEvaluator,
     opts: dict,
@@ -545,7 +576,26 @@ def compare_fastvqa_metrics(
         tested_video_path = (
             comp_dir / "preds" / "vids" / competitor / f"{video_name}.mp4"
         )
-        base_score = recording_scores[video_name]
+        tested_width, tested_height = get_video_dimensions(tested_video_path)
+        target_width = min(tested_width, REF_WIDTH)
+        target_height = min(tested_height, REF_HEIGHT)
+
+        ref_video_path = vid_dir / f"{video_name}.mp4"
+        if target_width != REF_WIDTH or target_height != REF_HEIGHT:
+            tempdir = tempfile.TemporaryDirectory()
+            new_ref_video_path = pathlib.Path(tempdir.name) / ref_video_path.name
+            normalize_video(
+                ref_video_path, new_ref_video_path, target_width, target_height
+            )
+            ref_video_path = new_ref_video_path
+            new_tested_video_path = pathlib.Path(tempdir.name) / tested_video_path.name
+            normalize_video(
+                tested_video_path, new_tested_video_path, target_width, target_height
+            )
+            tested_video_path = new_tested_video_path
+            base_score = evaluate_video_fastvqa(ref_video_path, opts, evaluator)
+        else:
+            base_score = recording_scores[video_name]
         score = evaluate_video_fastvqa(tested_video_path, opts, evaluator)
         res.append(
             {
@@ -639,7 +689,12 @@ def main():
             results.extend(rf)
 
             fb = compare_fastvqa_metrics(
-                recording_scores, args.comp_results_dir, comp, evaluator, opt
+                recording_scores,
+                args.comp_results_dir,
+                args.vid_dir,
+                comp,
+                evaluator,
+                opt,
             )
             results.extend(fb)
 

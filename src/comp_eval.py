@@ -10,7 +10,6 @@ import tempfile
 import warnings
 from enum import Enum
 
-import brisque
 import cv2
 import decord
 import ffmpeg_quality_metrics as fqm
@@ -27,7 +26,16 @@ from fastvqa.models import DiViDeAddEvaluator
 from src.utils import set_global_seed
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BRISQUE_CONFIG_PATH = pathlib.Path("data/brisque")
 REF_WIDTH, REF_HEIGHT = 640, 480
+
+
+def brisque(img: np.ndarray) -> float:
+    return cv2.quality.QualityBRISQUE_compute(
+        img,
+        str(BRISQUE_CONFIG_PATH / "brisque_model_live.yml"),
+        str(BRISQUE_CONFIG_PATH / "brisque_range_live.yml"),
+    )[0]
 
 
 logging.basicConfig(
@@ -141,7 +149,6 @@ def read_video(
     return frames
 
 
-BRISQUE = brisque.BRISQUE()
 THRESHOLD = 0.5
 
 DETECT_THRESHOLDS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.5]
@@ -368,8 +375,8 @@ def compare_synthetic_detection(
 def eval_frames(ref_frame: np.ndarray, test_frame: np.ndarray) -> dict[str, float]:
     ref_rgb = cv2.cvtColor(ref_frame, cv2.COLOR_BGR2RGB)
     test_rgb = cv2.cvtColor(test_frame, cv2.COLOR_BGR2RGB)
-    ref_brisque = BRISQUE.score(ref_rgb)
-    test_brisque = BRISQUE.score(test_rgb)
+    ref_brisque = brisque(ref_rgb)
+    test_brisque = brisque(test_rgb)
     ref_torch = (
         torch.from_numpy(ref_frame).float().permute(2, 0, 1).unsqueeze(0) / 255.0
     )

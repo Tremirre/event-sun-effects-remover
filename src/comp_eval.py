@@ -28,10 +28,11 @@ from src.utils import set_global_seed
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BRISQUE_CONFIG_PATH = pathlib.Path("data/brisque")
 REF_WIDTH, REF_HEIGHT = 640, 480
+REMOVAL_EVAL_MODEL = "delux_519"
 
 
 def brisque(img: np.ndarray) -> float:
-    return cv2.quality.QualityBRISQUE_compute(
+    return cv2.quality.QualityBRISQUE_compute(  # type: ignore
         img,
         str(BRISQUE_CONFIG_PATH / "brisque_model_live.yml"),
         str(BRISQUE_CONFIG_PATH / "brisque_range_live.yml"),
@@ -56,7 +57,8 @@ class EvalArgs:
     class Part(str, Enum):
         BASE = "base"
         EXTRA = "extra"
-        BOTH = "both"
+        REMOVAL = "removal"
+        ALL = "all"
 
     vid_dir: pathlib.Path
     comp_results_dir: pathlib.Path
@@ -633,14 +635,15 @@ def main():
     args = EvalArgs.from_args()
     args.print()
 
-    recording_paths = sorted((args.vid_dir).glob("*.mp4"), key=lambda x: x.stem)
-    logger.info(f"Found {len(recording_paths)} recordings")
-    recordings = {p.stem: read_video(p) for p in recording_paths}
-    with open(args.vqa_opt_path, "r") as f:
-        opt = yaml.safe_load(f)
-
     recording_scores = {}
-    if args.part != EvalArgs.Part.EXTRA:
+    recordings = {}
+    evaluator = None
+    if args.part in [EvalArgs.Part.BASE, EvalArgs.Part.ALL]:
+        recording_paths = sorted((args.vid_dir).glob("*.mp4"), key=lambda x: x.stem)
+        logger.info(f"Found {len(recording_paths)} recordings")
+        recordings = {p.stem: read_video(p) for p in recording_paths}
+        with open(args.vqa_opt_path, "r") as f:
+            opt = yaml.safe_load(f)
         evaluator = DiViDeAddEvaluator(**opt["model"]["args"]).to(DEVICE)
         evaluator.load_state_dict(
             torch.load(args.vqa_model_path, map_location=DEVICE)["state_dict"]
@@ -672,9 +675,31 @@ def main():
         for frame in frames:
             frame_to_type[frame] = frame_type
 
+    ref_est_maps = {}
+    if args.part in [EvalArgs.Part.REMOVAL, EvalArgs.Part.ALL]:
+        ref_est_map_paths = sorted(
+            (
+                args.comp_results_dir
+                / "preds"
+                / "real"
+                / "artifact"
+                / REMOVAL_EVAL_MODEL
+            ).glob("*.png"),
+            key=lambda x: x.stem,
+        )
+        ref_est_maps = np.stack(
+            [
+                cv2.imread(str(p))
+                for p in tqdm.tqdm(ref_est_map_paths, desc="Reading ref est maps")
+            ]
+        )
+
     for comp in competitors:
         scores_file = args.comp_results_dir / "scores" / f"{comp}.json"
-        if not scores_file.exists() and args.part != EvalArgs.Part.EXTRA:
+        if not scores_file.exists() and args.part in [
+            EvalArgs.Part.EXTRA,
+            EvalArgs.Part.ALL,
+        ]:
             results = []
             logger.info(f"Running evaluation for {comp}")
             sr = compare_synthetic_reconstruction(
@@ -713,7 +738,10 @@ def main():
             logger.info(f"Skipping {comp} as scores already exist")
 
         extra_scores_file = args.comp_results_dir / "scores" / f"{comp}_extra.json"
-        if args.part != EvalArgs.Part.BASE and not extra_scores_file.exists():
+        if not extra_scores_file.exists() and args.part in [
+            EvalArgs.Part.EXTRA,
+            EvalArgs.Part.ALL,
+        ]:
             logger.info("Extra metrics")
             rb = compare_real_base_metrics(recordings, args.comp_results_dir, comp)
             with open(extra_scores_file, "w") as f:
@@ -721,6 +749,18 @@ def main():
             logger.info(f"Saved extra metrics to {extra_scores_file}")
         else:
             logger.info(f"Skipping extra metrics for {comp}")
+
+        artifact_removal_scores_file = (
+            args.comp_results_dir / "scores" / f"{comp}_artifact_removal.json"
+        )
+        if not artifact_removal_scores_file.exists() and args.part in [
+            EvalArgs.Part.REMOVAL,
+            EvalArgs.Part.ALL,
+        ]:
+            logger.info("Artifact removal")
+            # with open(artifact_removal_scores_file, "w") as f:
+            #     json.dump(ar, f, indent=4)
+            logger.info(f"Saved artifact removal to {artifact_removal_scores_file}")
 
 
 if __name__ == "__main__":

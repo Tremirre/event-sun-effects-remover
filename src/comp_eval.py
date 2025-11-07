@@ -29,6 +29,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BRISQUE_CONFIG_PATH = pathlib.Path("data/brisque")
 REF_WIDTH, REF_HEIGHT = 640, 480
 REMOVAL_EVAL_MODEL = "delux_519"
+EPSILON = 1e-6
 
 
 def brisque(img: np.ndarray) -> float:
@@ -629,15 +630,84 @@ def compare_fastvqa_metrics(
     return res
 
 
+def compare_removal_metrics(
+    est_maps: np.ndarray, comp_results_dir: pathlib.Path, competitor: str
+) -> list[dict[str, float]]:
+    competitor_postmap_path = (
+        comp_results_dir / "preds" / "real" / "postmaps" / competitor
+    )
+    if not competitor_postmap_path.exists():
+        logger.info(f"No artifacts for competitor {competitor}")
+        return []
+    post_est_map_paths = sorted(
+        competitor_postmap_path.glob("*.png"), key=lambda x: x.stem
+    )
+    assert est_maps.shape[0] == len(post_est_map_paths), (
+        f"Number of reference-estimated maps ({est_maps.shape[0]}) does not match number of tested frames ({len(post_est_map_paths)})"
+    )
+    target_width = min(est_maps.shape[2], REF_WIDTH)
+    target_height = min(est_maps.shape[1], REF_HEIGHT)
+    res = []
+    for i, (est_map, post_est_map_path) in tqdm.tqdm(
+        enumerate(zip(est_maps, post_est_map_paths)),
+        total=len(est_maps),
+        desc="Comparing synthetic removal metrics",
+    ):
+        video_name = post_est_map_path.stem.rsplit("_", 1)[0]
+        post_est_map = cv2.imread(str(post_est_map_path), cv2.IMREAD_GRAYSCALE)
+        est_map = resize_to_shape(est_map, target_height, target_width)
+        post_est_map = resize_to_shape(post_est_map, target_height, target_width)
+        avg_before = np.mean(est_map)
+        avg_after = np.mean(post_est_map)
+        nmar = (avg_before - avg_after) / (avg_before + avg_after + EPSILON)
+        res.append(
+            {
+                "competitor": competitor,
+                "image": post_est_map_path.stem,
+                "type": "removal",
+                "metric": "nmar",
+                "value": nmar,
+                "division": video_name,
+            }
+        )
+        for threshold in [0.5, 0.75, 0.9]:
+            mean_strong_before = np.mean(est_map > (threshold * 255))
+            mean_strong_after = np.mean(post_est_map > (threshold * 255))
+            nsas = (mean_strong_before - mean_strong_after) / (
+                mean_strong_before + mean_strong_after + EPSILON
+            )
+            res.append(
+                {
+                    "competitor": competitor,
+                    "image": post_est_map_path.stem,
+                    "type": "removal",
+                    "metric": f"nsas_{threshold * 100:.0f}",
+                    "value": nsas,
+                    "division": video_name,
+                }
+            )
+
+    return res
+
+
 def main():
     set_global_seed(42)
     warnings.filterwarnings("ignore", category=UserWarning)
     args = EvalArgs.from_args()
     args.print()
 
+    competitors = sorted(
+        [p.stem for p in (args.comp_results_dir / "preds" / "vids").glob("*")]
+    )
+    logger.info(f"Found {len(competitors)} competitors")
+
     recording_scores = {}
     recordings = {}
     evaluator = None
+    test_frames_paths = []
+    test_frames = []
+    test_frames_split = {}
+    frame_to_type = {}
     if args.part in [EvalArgs.Part.BASE, EvalArgs.Part.ALL]:
         recording_paths = sorted((args.vid_dir).glob("*.mp4"), key=lambda x: x.stem)
         logger.info(f"Found {len(recording_paths)} recordings")
@@ -654,26 +724,20 @@ def main():
             video_name = recording_path.stem
             evaluated_score = evaluate_video_fastvqa(recording_path, opt, evaluator)
             recording_scores[video_name] = evaluated_score
+        test_frames_paths = sorted(
+            (args.split_dir / "test").glob("**/*.npy"), key=lambda x: x.stem
+        )
+        logger.info(f"Found {len(test_frames_paths)} test frames")
 
-    competitors = sorted(
-        [p.stem for p in (args.comp_results_dir / "preds" / "vids").glob("*")]
-    )
-    logger.info(f"Found {len(competitors)} competitors")
+        test_frames = np.stack([np.load(p) for p in test_frames_paths])
 
-    test_frames_paths = sorted(
-        (args.split_dir / "test").glob("**/*.npy"), key=lambda x: x.stem
-    )
-    logger.info(f"Found {len(test_frames_paths)} test frames")
-
-    test_frames = np.stack([np.load(p) for p in test_frames_paths])
-
-    test_frames_split = json.loads(
-        (args.split_dir / "test_artifact_source.json").read_text()
-    )
-    frame_to_type = {}
-    for frame_type, frames in test_frames_split.items():
-        for frame in frames:
-            frame_to_type[frame] = frame_type
+        test_frames_split = json.loads(
+            (args.split_dir / "test_artifact_source.json").read_text()
+        )
+        frame_to_type = {}
+        for frame_type, frames in test_frames_split.items():
+            for frame in frames:
+                frame_to_type[frame] = frame_type
 
     ref_est_maps = {}
     if args.part in [EvalArgs.Part.REMOVAL, EvalArgs.Part.ALL]:
@@ -689,7 +753,7 @@ def main():
         )
         ref_est_maps = np.stack(
             [
-                cv2.imread(str(p))
+                cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
                 for p in tqdm.tqdm(ref_est_map_paths, desc="Reading ref est maps")
             ]
         )
@@ -758,8 +822,9 @@ def main():
             EvalArgs.Part.ALL,
         ]:
             logger.info("Artifact removal")
-            # with open(artifact_removal_scores_file, "w") as f:
-            #     json.dump(ar, f, indent=4)
+            rm = compare_removal_metrics(ref_est_maps, args.comp_results_dir, comp)
+            with open(artifact_removal_scores_file, "w") as f:
+                json.dump(rm, f, indent=4)
             logger.info(f"Saved artifact removal to {artifact_removal_scores_file}")
 
 

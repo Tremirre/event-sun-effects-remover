@@ -670,6 +670,16 @@ def compare_removal_metrics(
                 "division": video_name,
             }
         )
+        res.append(
+            {
+                "competitor": competitor,
+                "image": post_est_map_path.stem,
+                "type": "removal",
+                "metric": "mar",
+                "value": (avg_before - avg_after) / (avg_before + EPSILON),
+                "division": video_name,
+            }
+        )
         for threshold in [0.5, 0.75, 0.9]:
             mean_strong_before = np.mean(est_map > (threshold * 255))
             mean_strong_after = np.mean(post_est_map > (threshold * 255))
@@ -683,6 +693,17 @@ def compare_removal_metrics(
                     "type": "removal",
                     "metric": f"nsas_{threshold * 100:.0f}",
                     "value": nsas,
+                    "division": video_name,
+                }
+            )
+            res.append(
+                {
+                    "competitor": competitor,
+                    "image": post_est_map_path.stem,
+                    "type": "removal",
+                    "metric": f"sas_{threshold * 100:.0f}",
+                    "value": (mean_strong_before - mean_strong_after)
+                    / (mean_strong_before + EPSILON),
                     "division": video_name,
                 }
             )

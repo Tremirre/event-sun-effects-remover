@@ -328,32 +328,23 @@ def compare_synthetic_detection(
         logger.info(f"No artifacts for competitor {competitor}")
         return []
     img_paths = sorted(competitor_art_path.glob("*.png"), key=lambda x: x.stem)
-    tested_frames = np.stack([cv2.imread(str(p)) for p in img_paths])
+    tested_frames = np.stack(
+        [cv2.imread(str(p), cv2.IMREAD_GRAYSCALE) for p in img_paths]
+    )
     assert ref_frames.shape[0] == tested_frames.shape[0], (
         f"Number of reference frames ({ref_frames.shape[0]}) does not match number of tested frames ({tested_frames.shape[0]})"
     )
     target_width = min(tested_frames.shape[2], REF_WIDTH)
     target_height = min(tested_frames.shape[1], REF_HEIGHT)
-    ref_frames = np.stack(
-        [
-            resize_to_shape(ref, target_height, target_width)
-            for ref, tested in zip(ref_frames[..., :3], tested_frames)
-        ]
-    )
-    tested_frames = np.stack(
-        [
-            resize_to_shape(tested, target_height, target_width)
-            for tested in tested_frames
-        ]
-    )
     res = []
     for i, (ref, tested) in tqdm.tqdm(
         enumerate(zip(ref_frames, tested_frames)),
         total=len(ref_frames),
         desc="Comparing synthetic detection",
     ):
+        ref = resize_to_shape(ref, target_height, target_width)
+        tested = resize_to_shape(tested, target_height, target_width)
         ref = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
-        tested = cv2.cvtColor(tested, cv2.COLOR_BGR2GRAY)
         ref_torch = T.ToTensor()(ref).unsqueeze(0)
         tested_torch = T.ToTensor()(tested).unsqueeze(0)
         for k, v in COMMON_METRICS["detection"].items():
@@ -472,7 +463,12 @@ def compare_real_ffqm_metrics(
         test_width, test_height = get_video_dimensions(tested_video_path)
         target_width = min(test_width, REF_WIDTH)
         target_height = min(test_height, REF_HEIGHT)
-        if target_width != REF_WIDTH or target_height != REF_HEIGHT:
+        if (
+            target_width != REF_WIDTH
+            or target_height != REF_HEIGHT
+            or test_width != REF_WIDTH
+            or test_height != REF_HEIGHT
+        ):
             tempdir = tempfile.TemporaryDirectory()
             new_ref_video_path = pathlib.Path(tempdir.name) / ref_video_path.name
             normalize_video(
@@ -718,7 +714,11 @@ def main():
     args.print()
 
     competitors = sorted(
-        [p.stem for p in (args.comp_results_dir / "preds" / "vids").glob("*")]
+        [
+            p.stem
+            for p in (args.comp_results_dir / "preds" / "vids").glob("*")
+            if not p.stem.startswith("_")
+        ]
     )
     logger.info(f"Found {len(competitors)} competitors")
 
@@ -780,9 +780,9 @@ def main():
         )
 
     for comp in competitors:
-        scores_file = args.comp_results_dir / "scores" / f"{comp}.json"
+        scores_file = args.comp_results_dir / "scores" / f"{comp}_base.json"
         if not scores_file.exists() and args.part in [
-            EvalArgs.Part.EXTRA,
+            EvalArgs.Part.BASE,
             EvalArgs.Part.ALL,
         ]:
             results = []
@@ -795,7 +795,7 @@ def main():
             )
             results.extend(sr)
             sd = compare_synthetic_detection(
-                test_frames,
+                test_frames[..., 5:],
                 args.comp_results_dir,
                 comp,
                 frame_to_type,

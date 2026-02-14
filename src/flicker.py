@@ -73,7 +73,7 @@ def sfpr(video: VideoRGB, tau: float = 0.05, eps: float = 1e-6) -> float:
 
 def fiv(video: VideoRGB) -> float:
     gray = to_luminance(video)
-    mean_intensity_by_frame = gray.mean(axis=0)
+    mean_intensity_by_frame = gray.mean(axis=(1, 2))
     return float(mean_intensity_by_frame.var())
 
 

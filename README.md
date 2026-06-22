@@ -6,7 +6,7 @@ Developed as part of the master's thesis:
 **"Lighting Artifact Removal from RGB Video Sequences Using Neuromorphic Data"**  
 by Bartosz Stachowiak, 2025
 
-## 📌 Key Features
+## Key Features
 
 - Unified detection and removal of lighting artifacts using RGB + event data
 - Modular architecture supporting different fusion and loss configurations
@@ -15,7 +15,7 @@ by Bartosz Stachowiak, 2025
  
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 - `data-prep/` # Scripts for preparing datasets
 - `src/` # Core model, training, and evaluation code

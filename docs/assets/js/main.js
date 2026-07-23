@@ -51,9 +51,8 @@
     const sliders = document.querySelectorAll(".ba-slider");
 
     sliders.forEach((slider) => {
-      const beforeWrapper = slider.querySelector(".ba-before-wrapper");
       const handle = slider.querySelector(".ba-handle");
-      if (!beforeWrapper || !handle) return;
+      if (!handle) return;
 
       // Add labels
       const labels = document.createElement("div");
@@ -63,10 +62,13 @@
 
       let isDragging = false;
 
+      function getPct() {
+        return parseFloat(slider.style.getPropertyValue("--pct")) || 50;
+      }
+
       function setPct(pct) {
         pct = Math.max(2, Math.min(98, pct));
-        beforeWrapper.style.width = `${pct}%`;
-        handle.style.left = `${pct}%`;
+        slider.style.setProperty("--pct", `${pct}%`);
       }
 
       function updateFromClientX(clientX) {
@@ -105,13 +107,13 @@
       // Keyboard support
       handle.addEventListener("keydown", (e) => {
         const step = 3;
-        const currentLeft = parseFloat(handle.style.left) || 50;
+        const current = getPct();
         if (e.key === "ArrowLeft") {
           e.preventDefault();
-          setPct(currentLeft - step);
+          setPct(current - step);
         } else if (e.key === "ArrowRight") {
           e.preventDefault();
-          setPct(currentLeft + step);
+          setPct(current + step);
         } else if (e.key === "Home") {
           e.preventDefault();
           setPct(2);

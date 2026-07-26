@@ -679,8 +679,14 @@ a:hover {
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+  transition: background var(--transition), border-color var(--transition), transform var(--transition), opacity var(--transition);
   z-index: 2;
+  flex: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.carousel-btn svg {
+  pointer-events: none;
 }
 
 .carousel-btn:hover {
@@ -690,10 +696,24 @@ a:hover {
   transform: scale(1.05);
 }
 
+.carousel-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .carousel-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
   transform: none;
+}
+
+.results-carousel:focus-visible {
+  outline: none;
+}
+
+.results-carousel:focus-visible .carousel-viewport {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .carousel-prev {

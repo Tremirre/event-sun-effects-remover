@@ -127,6 +127,96 @@
 
   initSliders();
 
+  /* Results carousel */
+  function initCarousel() {
+    const carousel = document.querySelector(".results-carousel");
+    if (!carousel) return;
+
+    const track = carousel.querySelector(".carousel-track");
+    const slides = Array.from(carousel.querySelectorAll(".carousel-slide"));
+    const prevBtn = carousel.querySelector(".carousel-prev");
+    const nextBtn = carousel.querySelector(".carousel-next");
+    const dotsContainer = carousel.querySelector(".carousel-dots");
+    if (!track || slides.length === 0) return;
+
+    let currentIndex = 0;
+    let slidesPerView = getSlidesPerView();
+
+    function getSlidesPerView() {
+      return window.innerWidth >= 900 ? 2 : 1;
+    }
+
+    function maxIndex() {
+      return Math.max(0, slides.length - slidesPerView);
+    }
+
+    function createDots() {
+      dotsContainer.innerHTML = "";
+      const total = maxIndex() + 1;
+      for (let i = 0; i < total; i++) {
+        const dot = document.createElement("button");
+        dot.className = "carousel-dot";
+        dot.setAttribute("aria-label", `Go to slide ${i + 1}`);
+        dot.addEventListener("click", () => goTo(i));
+        dotsContainer.appendChild(dot);
+      }
+    }
+
+    function update() {
+      const pct = -(currentIndex * (100 / slidesPerView));
+      track.style.transform = `translateX(${pct}%)`;
+
+      const dots = dotsContainer.querySelectorAll(".carousel-dot");
+      dots.forEach((dot, i) => {
+        dot.classList.toggle("active", i === currentIndex);
+      });
+
+      if (prevBtn) prevBtn.disabled = currentIndex === 0;
+      if (nextBtn) nextBtn.disabled = currentIndex >= maxIndex();
+    }
+
+    function goTo(index) {
+      currentIndex = Math.max(0, Math.min(index, maxIndex()));
+      update();
+    }
+
+    function next() {
+      goTo(currentIndex + 1);
+    }
+
+    function prev() {
+      goTo(currentIndex - 1);
+    }
+
+    prevBtn.addEventListener("click", prev);
+    nextBtn.addEventListener("click", next);
+
+    window.addEventListener("resize", () => {
+      const newSlidesPerView = getSlidesPerView();
+      if (newSlidesPerView !== slidesPerView) {
+        slidesPerView = newSlidesPerView;
+        currentIndex = Math.min(currentIndex, maxIndex());
+        createDots();
+        update();
+      }
+    });
+
+    carousel.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        prev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        next();
+      }
+    });
+
+    createDots();
+    update();
+  }
+
+  initCarousel();
+
   /* Citation copy */
   document.querySelectorAll("[data-copy]").forEach((btn) => {
     btn.addEventListener("click", async () => {

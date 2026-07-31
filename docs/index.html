@@ -145,89 +145,79 @@
         </p>
 
         <div class="pipeline">
-          <div class="pipeline-flow">
-            <div class="pipeline-node input-node">
-              <div class="node-images">
-                <div class="node-img">
-                  <img src="assets/images/pipeline/3d-sun2-event-window.jpg" alt="Event window">
-                  <span>Event Window</span>
-                </div>
-                <div class="node-img">
-                  <img src="assets/images/pipeline/rgb-input.jpg" alt="RGB frame">
-                  <span>RGB Frame</span>
-                </div>
-              </div>
-              <div class="node-label">Inputs</div>
-            </div>
+          <div class="pipeline-scroll">
+            <svg class="pipeline-svg" viewBox="0 0 780 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="DeLux pipeline diagram: events are reconstructed, RGB frame is used for artifact detection, both are fused with the original RGB and inpainted to produce a clean frame." font-family="Inter, system-ui, sans-serif">
+              <defs>
+                <marker id="pl-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L6,3 z" fill="#f59e0b"/>
+                </marker>
+              </defs>
 
-            <div class="pipeline-branches">
-              <div class="branch">
-                <div class="pipeline-arrow arrow-down" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-                </div>
-                <div class="pipeline-node">
-                  <div class="node-img">
-                    <img src="assets/images/pipeline/sun2-event-frame.jpg" alt="Event reconstruction">
-                    <span>Event Reconstruction</span>
-                  </div>
-                  <div class="node-label">
-                    <span class="node-number">1</span>
-                    Event-to-video
-                  </div>
-                </div>
-              </div>
+              <!-- Top row: Event branch -->
+              <text x="80" y="16" text-anchor="middle" fill="currentColor" font-size="10" font-weight="600">Event Window</text>
+              <rect x="20" y="24" width="120" height="90" rx="6" fill="none" stroke="#334155"/>
+              <image href="assets/images/pipeline/3d-sun2-event-window.jpg" x="20" y="24" width="120" height="90" preserveAspectRatio="xMidYMid slice"/>
 
-              <div class="branch">
-                <div class="pipeline-arrow arrow-down" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-                </div>
-                <div class="pipeline-node">
-                  <div class="node-img">
-                    <img src="assets/images/pipeline/mask.jpg" alt="Estimated artifact map">
-                    <span>Estimated Artifact Map</span>
-                  </div>
-                  <div class="node-label">
-                    <span class="node-number">2</span>
-                    Artifact Detection
-                  </div>
-                </div>
-              </div>
-            </div>
+              <line x1="140" y1="69" x2="158" y2="69" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
 
-            <div class="pipeline-converge">
-              <div class="pipeline-arrow arrow-converge-left" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="5" x2="19" y2="19"/><polyline points="19 15 19 19 15 19"/></svg>
-              </div>
-              <div class="pipeline-arrow arrow-converge-right" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><polyline points="5 15 5 19 9 19"/></svg>
-              </div>
-            </div>
+              <rect x="160" y="50" width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+              <text x="230" y="74" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">1. Event-to-video</text>
 
-            <div class="pipeline-node">
-              <div class="node-img">
-                <img src="assets/images/pipeline/stacked.jpg" alt="Fused representation">
-                <span>RGB + Event + Mask</span>
-              </div>
-              <div class="node-label">
-                <span class="node-number">3</span>
-                Multimodal Fusion
-              </div>
-            </div>
+              <line x1="300" y1="69" x2="318" y2="69" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
 
-            <div class="pipeline-arrow arrow-down" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-            </div>
+              <text x="380" y="16" text-anchor="middle" fill="currentColor" font-size="10" font-weight="600">Event Reconstruction</text>
+              <rect x="320" y="24" width="120" height="90" rx="6" fill="none" stroke="#334155"/>
+              <image href="assets/images/pipeline/sun2-event-frame.jpg" x="320" y="24" width="120" height="90" preserveAspectRatio="xMidYMid slice"/>
 
-            <div class="pipeline-node">
-              <div class="node-img">
-                <img src="assets/images/pipeline/sun2-clear-frame.jpg" alt="Artifact-free RGB frame">
-                <span>Artifact-Free RGB</span>
-              </div>
-              <div class="node-label">
-                <span class="node-number">4</span>
-                Artifact Removal
-              </div>
-            </div>
+              <line x1="440" y1="69" x2="458" y2="69" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
+
+              <rect x="460" y="50" width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+              <text x="530" y="74" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">3. Multimodal Fusion</text>
+
+              <!-- Frame Out -->
+              <text x="680" y="16" text-anchor="middle" fill="currentColor" font-size="10" font-weight="600">Artifact-Free RGB</text>
+              <rect x="620" y="24" width="120" height="90" rx="6" fill="none" stroke="#334155"/>
+              <image href="assets/images/pipeline/sun2-clear-frame.jpg" x="620" y="24" width="120" height="90" preserveAspectRatio="xMidYMid slice"/>
+
+              <!-- Bottom row: RGB branch -->
+              <rect x="20" y="234" width="120" height="90" rx="6" fill="none" stroke="#334155"/>
+              <image href="assets/images/pipeline/rgb-input.jpg" x="20" y="234" width="120" height="90" preserveAspectRatio="xMidYMid slice"/>
+              <text x="80" y="346" text-anchor="middle" fill="currentColor" font-size="10" font-weight="600">RGB Frame</text>
+
+              <line x1="140" y1="279" x2="158" y2="279" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
+
+              <rect x="160" y="260" width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+              <text x="230" y="284" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">2. Artifact Detection</text>
+
+              <line x1="300" y1="279" x2="318" y2="279" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
+
+              <rect x="320" y="234" width="120" height="90" rx="6" fill="none" stroke="#334155"/>
+              <image href="assets/images/pipeline/mask.jpg" x="320" y="234" width="120" height="90" preserveAspectRatio="xMidYMid slice"/>
+              <text x="380" y="346" text-anchor="middle" fill="currentColor" font-size="10" font-weight="600">Artifact Map</text>
+
+              <!-- Fused representation -->
+              <rect x="470" y="234" width="120" height="90" rx="6" fill="none" stroke="#334155"/>
+              <image href="assets/images/pipeline/stacked.jpg" x="470" y="234" width="120" height="90" preserveAspectRatio="xMidYMid slice"/>
+              <text x="530" y="346" text-anchor="middle" fill="currentColor" font-size="10" font-weight="600">Fused Representation</text>
+
+              <line x1="590" y1="279" x2="618" y2="279" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
+
+              <!-- Removal -->
+              <rect x="620" y="260" width="120" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+              <text x="680" y="284" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">4. Artifact Removal</text>
+
+              <!-- Cross: RGB Frame -> Fusion (up, right, up) -->
+              <path d="M 80,234 L 80,214 L 448,214 L 448,64 L 458,64" stroke="#f59e0b" stroke-width="1.8" fill="none" stroke-dasharray="5,3" marker-end="url(#pl-arrow)"/>
+
+              <!-- Cross: Artifact Map -> Fusion (right, up) -->
+              <path d="M 440,279 L 452,279 L 452,76 L 458,76" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#pl-arrow)"/>
+
+              <!-- Vertical: Fusion -> Fused Representation (down) -->
+              <line x1="530" y1="90" x2="530" y2="232" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
+
+              <!-- Vertical: Removal -> Frame Out (up) -->
+              <line x1="680" y1="260" x2="680" y2="116" stroke="#f59e0b" stroke-width="2" marker-end="url(#pl-arrow)"/>
+            </svg>
           </div>
         </div>
       </div>

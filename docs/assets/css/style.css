@@ -245,6 +245,10 @@ a:hover {
   letter-spacing: -0.02em;
   margin-bottom: 20px;
   color: #ffffff;
+  text-align: justify;
+  text-align-last: center;
+  hyphens: auto;
+  -webkit-hyphens: auto;
 }
 
 .brand {
@@ -309,6 +313,27 @@ a:hover {
 
 .hero-abstract strong {
   color: var(--accent-2);
+}
+
+.hero-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 28px;
+  max-width: 660px;
+}
+
+.hero-keywords span {
+  display: inline-block;
+  background: rgba(11, 15, 25, 0.5);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .hero-actions {

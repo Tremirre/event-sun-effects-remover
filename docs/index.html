@@ -160,38 +160,47 @@
               <div class="node-label">Inputs</div>
             </div>
 
-            <div class="pipeline-arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <div class="pipeline-branches">
+              <div class="branch">
+                <div class="pipeline-arrow arrow-down" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+                </div>
+                <div class="pipeline-node">
+                  <div class="node-img">
+                    <img src="assets/images/pipeline/sun2-event-frame.jpg" alt="Event reconstruction">
+                    <span>Event Reconstruction</span>
+                  </div>
+                  <div class="node-label">
+                    <span class="node-number">1</span>
+                    Event-to-video
+                  </div>
+                </div>
+              </div>
+
+              <div class="branch">
+                <div class="pipeline-arrow arrow-down" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+                </div>
+                <div class="pipeline-node">
+                  <div class="node-img">
+                    <img src="assets/images/pipeline/mask.jpg" alt="Estimated artifact map">
+                    <span>Estimated Artifact Map</span>
+                  </div>
+                  <div class="node-label">
+                    <span class="node-number">2</span>
+                    Artifact Detection
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="pipeline-node">
-              <div class="node-img">
-                <img src="assets/images/pipeline/sun2-event-frame.jpg" alt="Event reconstruction">
-                <span>Event Reconstruction</span>
+            <div class="pipeline-converge">
+              <div class="pipeline-arrow arrow-converge-left" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="5" x2="19" y2="19"/><polyline points="19 15 19 19 15 19"/></svg>
               </div>
-              <div class="node-label">
-                <span class="node-number">1</span>
-                Event-to-video
+              <div class="pipeline-arrow arrow-converge-right" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><polyline points="5 15 5 19 9 19"/></svg>
               </div>
-            </div>
-
-            <div class="pipeline-arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            </div>
-
-            <div class="pipeline-node">
-              <div class="node-img">
-                <img src="assets/images/pipeline/mask.jpg" alt="Estimated artifact map">
-                <span>Estimated Artifact Map</span>
-              </div>
-              <div class="node-label">
-                <span class="node-number">2</span>
-                Artifact Detection
-              </div>
-            </div>
-
-            <div class="pipeline-arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </div>
 
             <div class="pipeline-node">
@@ -205,8 +214,8 @@
               </div>
             </div>
 
-            <div class="pipeline-arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <div class="pipeline-arrow arrow-down" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
             </div>
 
             <div class="pipeline-node">

@@ -796,9 +796,11 @@ a:hover {
 
 /* Videos */
 .video-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 28px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .video-card {
@@ -812,8 +814,8 @@ a:hover {
 .video-card video {
   width: 100%;
   display: block;
-  aspect-ratio: 4 / 1;
-  object-fit: cover;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
   background: #000;
 }
 
@@ -927,10 +929,6 @@ a:hover {
 
 /* Responsive */
 @media (max-width: 900px) {
-  .video-grid {
-    grid-template-columns: 1fr;
-  }
-
   .artifact-grid {
     grid-template-columns: repeat(2, 1fr);
   }

@@ -21,7 +21,7 @@
         <span></span><span></span><span></span>
       </button>
       <ul class="nav-links">
-        <li><a href="#abstract">Abstract</a></li>
+        <li><a href="#motivation">Why event cameras?</a></li>
         <li><a href="#pipeline">Pipeline</a></li>
         <li><a href="#results">Results</a></li>
         <li><a href="#videos">Videos</a></li>
@@ -48,6 +48,21 @@
         <a href="mailto:dariusz.brzezinski@cs.put.poznan.pl" class="author">Dariusz Brzeziński</a>
       </p>
       <p class="hero-affil">Institute of Computing Science, Poznań University of Technology, Poland</p>
+      <blockquote class="hero-abstract">
+        <p>
+          Conventional RGB cameras suffer from lighting artifacts such as flare, glare, flicker, and overexposure,
+          leading to irrecoverable information loss that necessitates computational restoration. However, existing
+          approaches treat these problems in isolation, failing to recover structural details completely obscured by
+          complex spatially discrete image degradations.
+        </p>
+        <p>
+          We propose a novel cross-modal restoration paradigm and present <strong>DeLux</strong>, a modular
+          proof-of-concept pipeline that leverages neuromorphic event streams as a structural prior to guide the
+          targeted detection and inpainting of lighting artifacts in RGB video. Validation on synthetic benchmarks
+          and real-world automotive footage demonstrates that DeLux effectively suppresses local artifacts and
+          restores affected regions, outperforming RGB-only baselines and event-guided HDR models.
+        </p>
+      </blockquote>
       <div class="hero-actions">
         <a class="btn btn-primary" href="https://arxiv.org/pdf/2606.27576" target="_blank" rel="noopener">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
@@ -63,41 +78,12 @@
         </a>
       </div>
     </div>
-    <a href="#abstract" class="scroll-hint" aria-label="Scroll down">
+    <a href="#motivation" class="scroll-hint" aria-label="Scroll down">
       <span></span>
     </a>
   </header>
 
   <main id="main">
-    <section id="abstract" class="section abstract-section">
-      <div class="container narrow">
-        <h2 class="section-title">Abstract</h2>
-        <div class="abstract-card">
-          <p>
-            Conventional RGB cameras suffer from lighting artifacts such as flare, glare, flicker, and overexposure,
-            leading to irrecoverable information loss that necessitates computational restoration. However, existing
-            approaches treat these problems in isolation, failing to recover structural details completely obscured by
-            complex spatially discrete image degradations.
-          </p>
-          <p>
-            We propose a novel cross-modal restoration paradigm and present <strong>DeLux</strong>, a modular proof-of-concept
-            pipeline that leverages neuromorphic event streams as a structural prior to guide the targeted detection and
-            inpainting of lighting artifacts in RGB video. Validation on synthetic benchmarks and real-world automotive
-            footage demonstrates that DeLux effectively suppresses local artifacts and restores affected regions,
-            outperforming RGB-only baselines and event-guided HDR models.
-          </p>
-        </div>
-        <div class="keywords">
-          <strong>Keywords:</strong>
-          <span>cross-modal restoration</span>
-          <span>lighting artifact removal</span>
-          <span>event-based vision</span>
-          <span>multimodal fusion</span>
-          <span>video inpainting</span>
-        </div>
-      </div>
-    </section>
-
     <section id="motivation" class="section motivation-section">
       <div class="container">
         <h2 class="section-title">Why event cameras?</h2>

@@ -814,7 +814,7 @@ a:hover {
 .video-card video {
   width: 100%;
   display: block;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 32 / 9;
   object-fit: contain;
   background: #000;
 }

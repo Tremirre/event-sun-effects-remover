@@ -1190,6 +1190,12 @@ a:hover {
     font-size: 0.72rem;
   }
 
+  .video-caption {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+  }
+
   .hero-actions {
     gap: 10px;
   }

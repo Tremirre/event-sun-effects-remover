@@ -833,9 +833,9 @@ a:hover {
 }
 
 .table-title {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  margin: 40px 0 16px;
+  margin: 36px 0 14px;
   color: var(--accent-2);
 }
 
@@ -852,27 +852,27 @@ a:hover {
   border-collapse: collapse;
   font-size: 0.85rem;
   background: var(--bg-card);
-  min-width: 480px;
+  min-width: 420px;
 }
 
 .results-table th {
-  padding: 12px 14px;
-  text-align: left;
+  padding: 11px 12px;
+  text-align: center;
   font-weight: 600;
   color: var(--text);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 2px solid var(--accent);
   white-space: nowrap;
   background: var(--bg-elev);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
 }
 
-.results-table th:first-child,
-.results-table th:nth-child(2) {
+.results-table th:first-child {
   text-align: left;
 }
 
 .results-table td {
-  padding: 10px 14px;
+  padding: 10px 12px;
   text-align: center;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
@@ -880,59 +880,42 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.results-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .results-table td:first-child {
   text-align: left;
   font-weight: 600;
   color: var(--text);
-  vertical-align: middle;
-}
-
-.results-table td.metric-name {
-  text-align: left;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.results-table .group-label td {
-  text-align: left;
-  font-weight: 700;
-  color: var(--accent-2);
-  background: rgba(245, 158, 11, 0.08);
-  font-size: 0.82rem;
-  padding: 10px 14px;
-  letter-spacing: 0.02em;
 }
 
 .results-table .best {
-  background: rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.18);
   color: var(--text);
   font-weight: 700;
 }
 
 .results-table .second {
-  background: rgba(250, 204, 21, 0.18);
+  background: rgba(250, 204, 21, 0.12);
   color: var(--text);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .best-cell {
-  background: rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.18);
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 4px;
 }
 
 .second-cell {
-  background: rgba(250, 204, 21, 0.18);
+  background: rgba(250, 204, 21, 0.12);
   text-decoration: underline;
   text-underline-offset: 2px;
   padding: 1px 6px;
   border-radius: 4px;
-}
-
-.results-table td:where(:not(.best):not(.second):not(.metric-name):not(.group-label td)):hover {
-  background: var(--bg-elev);
 }
 
 /* Citation */

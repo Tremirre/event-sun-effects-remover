@@ -834,32 +834,39 @@ a:hover {
 
 .metrics-glossary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px 28px;
-  max-width: 900px;
-  margin: 0 0 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 24px;
+  max-width: 1100px;
+  margin: 0 0 24px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .metric-item {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 0.86rem;
-  line-height: 1.45;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.84rem;
+  line-height: 1.4;
 }
 
 .metric-item dt {
   font-weight: 700;
   color: var(--accent-2);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  flex: none;
-  min-width: 92px;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
 }
 
 .metric-item dd {
   margin: 0;
   color: var(--text-muted);
+}
+
+.metric-item dd strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .table-title {

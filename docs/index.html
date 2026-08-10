@@ -25,6 +25,7 @@
         <li><a href="#pipeline">Pipeline</a></li>
         <li><a href="#results">Results</a></li>
         <li><a href="#videos">Videos</a></li>
+        <li><a href="#evaluation">Evaluation</a></li>
         <li><a href="#citation">Citation</a></li>
       </ul>
     </div>
@@ -348,6 +349,87 @@
             </video>
             <p class="video-caption"><em>sun14</em></p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="evaluation" class="section evaluation-section">
+      <div class="container">
+        <h2 class="section-title">Quantitative evaluation</h2>
+        <p class="section-lead">
+          DeLux is evaluated on both synthetic benchmarks and real-world automotive recordings.
+          Best values are <span class="best-cell">bold on orange</span>, second-best are
+          <span class="second-cell">underlined on yellow</span>.
+        </p>
+
+        <h3 class="table-title">Synthetic reconstruction &amp; removal</h3>
+        <div class="table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Metric</th><th>Category</th>
+                <th>DAD<sup>&dagger;</sup></th><th>F7K</th><th>Wu et al.</th><th>SHDR</th><th>HDRev-Diff</th><th>DeLux</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group-label"><td colspan="8">Ground Truth Reconstruction</td></tr>
+              <tr><td rowspan="3">Overall</td><td class="metric-name">MS-SSIM &uarr;</td><td class="second">0.970</td><td>0.954</td><td>0.949</td><td>0.868</td><td>—</td><td class="best">0.991</td></tr>
+              <tr><td class="metric-name">PSNR &uarr;</td><td class="second">29.525</td><td>26.583</td><td>25.848</td><td>14.418</td><td>—</td><td class="best">36.461</td></tr>
+              <tr><td class="metric-name">MAPE &darr;</td><td class="second">0.060</td><td>0.071</td><td>0.078</td><td>0.537</td><td>—</td><td class="best">0.028</td></tr>
+              <tr class="group-label"><td colspan="8">Artifact Removal</td></tr>
+              <tr><td rowspan="3">Overall</td><td class="metric-name">&Delta; SAS &uarr;</td><td>-352.50%</td><td class="second">58.87%</td><td>18.54%</td><td>-255.65%</td><td>-1402.87%</td><td class="best">63.22%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="table-title">Synthetic artifact detection</h3>
+        <div class="table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Metric</th><th>Category</th>
+                <th>DAD<sup>&dagger;</sup></th><th>F7K</th><th>Wu et al.</th><th>DeLux</th><th>DeLux-D</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td rowspan="2">Overall</td><td class="metric-name">Accuracy &uarr;</td><td class="second">0.949</td><td>0.915</td><td>0.809</td><td>0.925</td><td class="best">0.971</td></tr>
+              <tr><td class="metric-name">F1-score &uarr;</td><td class="second">0.634</td><td>0.212</td><td>0.281</td><td>0.613</td><td class="best">0.785</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="table-title">Real-world removal effectiveness</h3>
+        <div class="table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Metric</th><th>Category</th>
+                <th>DAD</th><th>DAD*</th><th>F7K</th><th>Wu et al.</th><th>SHDR</th><th>Deflicker</th><th>DeLux</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td rowspan="3">Overall</td><td class="metric-name">FIV &darr;</td><td>3910.52</td><td>3893.35</td><td>3534.97</td><td>4195.34</td><td>—</td><td class="best">3278.41</td><td class="second">3427.30</td></tr>
+              <tr><td class="metric-name">MAR &uarr;</td><td>17.49%</td><td>0.89%</td><td>34.08%</td><td class="second">41.39%</td><td>-13.56%</td><td>—</td><td class="best">53.99%</td></tr>
+              <tr><td class="metric-name">SAS &uarr;</td><td>-2.949</td><td>-3.525</td><td class="second">0.5887</td><td>0.1854</td><td>-2.5565</td><td>—</td><td class="best">0.6322</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="table-title">Ablation study</h3>
+        <div class="table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Variant</th><th>Accuracy &uarr;</th><th>MS-SSIM &uarr;</th><th>PSNR &uarr;</th><th>MAPE &darr;</th><th>&Delta; SAS &uarr;</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>DeLux-NE</td><td class="second">0.964</td><td class="second">0.986</td><td>33.757</td><td>0.039</td><td class="best">67.06%</td></tr>
+              <tr><td>DeLux-ND</td><td>—</td><td>0.982</td><td>30.822</td><td>0.059</td><td>-195.34%</td></tr>
+              <tr><td>DeLux-D</td><td class="best">0.971</td><td class="best">0.991</td><td class="second">35.839</td><td class="second">0.029</td><td>-1703.38%</td></tr>
+              <tr><td>DeLux</td><td>0.925</td><td class="best">0.991</td><td class="best">36.461</td><td class="best">0.028</td><td class="second">63.22%</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

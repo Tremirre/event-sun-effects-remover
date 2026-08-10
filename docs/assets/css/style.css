@@ -832,6 +832,36 @@ a:hover {
   background: var(--bg);
 }
 
+.metrics-glossary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 28px;
+  max-width: 900px;
+  margin: 0 0 16px;
+}
+
+.metric-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.metric-item dt {
+  font-weight: 700;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: none;
+  min-width: 92px;
+}
+
+.metric-item dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
 .table-title {
   font-size: 1.05rem;
   font-weight: 600;

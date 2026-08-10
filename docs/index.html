@@ -365,15 +365,15 @@
         <div class="metrics-glossary">
           <div class="metric-item">
             <dt>MS-SSIM</dt>
-            <dd><strong>M</strong>ulti-<strong>S</strong>cale <strong>S</strong>tructural <strong>S</strong>imilarity <strong>I</strong>ndex <strong>M</strong>easure — perceptual image similarity to the ground-truth frame.</dd>
+            <dd><strong>Multi-Scale Structural Similarity Index Measure</strong> — compares a restored image with its clean reference frame.</dd>
           </div>
           <div class="metric-item">
             <dt>PSNR</dt>
-            <dd><strong>P</strong>eak <strong>S</strong>ignal-to-<strong>N</strong>oise <strong>R</strong>atio — pixel-level reconstruction fidelity, expressed in decibels (dB).</dd>
+            <dd><strong>Peak Signal-to-Noise Ratio</strong> — reconstruction fidelity relative to a clean reference frame.</dd>
           </div>
           <div class="metric-item">
             <dt>MAPE</dt>
-            <dd><strong>M</strong>ean <strong>A</strong>bsolute <strong>P</strong>ercentage <strong>E</strong>rror — average relative pixel-wise error against the ground truth.</dd>
+            <dd><strong>Mean Absolute Percentage Error</strong> — relative reconstruction error against a clean reference frame.</dd>
           </div>
           <div class="metric-item">
             <dt>Accuracy</dt>
@@ -385,19 +385,19 @@
           </div>
           <div class="metric-item">
             <dt>FIV</dt>
-            <dd><strong>F</strong>licker <strong>I</strong>nformation <strong>V</strong>alue — amount of temporal flicker present across the video sequence.</dd>
+            <dd><strong>Frame Intensity Variance</strong> — variance of the mean luminance across video frames; lower indicates less global brightness fluctuation.</dd>
           </div>
           <div class="metric-item">
             <dt>MAR</dt>
-            <dd><strong>M</strong>ean <strong>A</strong>rtefact <strong>R</strong>eduction — share of artefact pixels removed relative to the corrupted input.</dd>
+            <dd><strong>Mean Artifact Reduction</strong> — reduction in the mean estimated artifact-map intensity relative to the input.</dd>
           </div>
           <div class="metric-item">
             <dt>SAS</dt>
-            <dd><strong>S</strong>ignal-to-<strong>A</strong>rtefact <strong>S</strong>core — ratio of clean signal energy to residual artefact energy.</dd>
+            <dd><strong>Strong Artifact Suppression</strong> — decrease in pixels classified as strong artifacts before versus after restoration.</dd>
           </div>
           <div class="metric-item">
             <dt>&Delta; SAS</dt>
-            <dd>Relative change in Signal-to-Artefact Score between the restored frame and the corrupted input.</dd>
+            <dd>Relative change in Strong Artifact Suppression compared with the corrupted input.</dd>
           </div>
         </div>
 
